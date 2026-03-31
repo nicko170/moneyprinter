@@ -1,0 +1,127 @@
+package templates
+
+import (
+	"fmt"
+	"github.com/moneyprinter/components/badge"
+	"github.com/moneyprinter/components/button"
+	"github.com/moneyprinter/components/card"
+	"github.com/moneyprinter/internal/job"
+)
+
+templ Dashboard(jobs []*job.Job, seriesList []*job.Series) {
+	@Layout("Dashboard") {
+		<div class="flex items-center justify-between mb-6">
+			<h1 class="text-2xl font-bold">Dashboard</h1>
+			<div class="flex gap-2">
+				@button.Button(button.Props{Href: "/jobs/create"}) {
+					+ Create Job
+				}
+				@button.Button(button.Props{Href: "/series/create", Variant: button.VariantOutline}) {
+					+ Create Series
+				}
+			</div>
+		</div>
+		if len(seriesList) > 0 {
+			<h2 class="text-lg font-semibold mb-3">Series</h2>
+			<div class="grid gap-3 mb-8">
+				for _, s := range seriesList {
+					@card.Card(card.Props{Class: "hover:shadow-md transition-shadow"}) {
+						<a href={ templ.SafeURL("/series/" + s.ID) } class="block p-4">
+							<div class="flex items-center justify-between">
+								<div>
+									<p class="font-medium">{ s.Theme }</p>
+									<p class="text-xs text-muted-foreground mt-1">
+										{ formatInt(s.EpisodeCount) } episodes
+									</p>
+								</div>
+								@seriesStatusBadge(s.Status)
+							</div>
+						</a>
+					}
+				}
+			</div>
+		}
+		<h2 class="text-lg font-semibold mb-3">Jobs</h2>
+		if len(jobs) == 0 {
+			@card.Card() {
+				@card.Content(card.ContentProps{Class: "py-12 text-center"}) {
+					<p class="text-muted-foreground">No jobs yet. Create one to get started.</p>
+				}
+			}
+		} else {
+			<div class="grid gap-3">
+				for _, j := range jobs {
+					@card.Card(card.Props{Class: "hover:shadow-md transition-shadow"}) {
+						<a href={ templ.SafeURL("/jobs/" + j.ID) } class="block p-4">
+							<div class="flex items-center justify-between gap-4 overflow-hidden">
+								<div class="min-w-0 flex-1">
+									<p class="font-medium truncate">{ j.Subject }</p>
+									<p class="text-xs text-muted-foreground mt-1">
+										{ j.CreatedAt.Format("Jan 2 15:04") }
+										if j.SeriesID != "" {
+											<span class="ml-2">· part of series</span>
+										}
+									</p>
+								</div>
+								<div class="shrink-0">
+									@jobStatusBadge(j.Status)
+								</div>
+							</div>
+						</a>
+					}
+				}
+			</div>
+		}
+		<script src="/static/js/dashboard.js"></script>
+	}
+}
+
+templ jobStatusBadge(status job.Status) {
+	switch status {
+		case job.StatusQueued:
+			@badge.Badge(badge.Props{Variant: badge.VariantSecondary}) {
+				Queued
+			}
+		case job.StatusRunning:
+			@badge.Badge(badge.Props{Class: "bg-blue-100 text-blue-800 border-blue-200"}) {
+				Running
+			}
+		case job.StatusCompleted:
+			@badge.Badge(badge.Props{Class: "bg-green-100 text-green-800 border-green-200"}) {
+				Completed
+			}
+		case job.StatusFailed:
+			@badge.Badge(badge.Props{Variant: badge.VariantDestructive}) {
+				Failed
+			}
+		case job.StatusCancelled:
+			@badge.Badge(badge.Props{Class: "bg-yellow-100 text-yellow-800 border-yellow-200"}) {
+				Cancelled
+			}
+	}
+}
+
+templ seriesStatusBadge(status job.SeriesStatus) {
+	switch status {
+		case job.SeriesStatusPending:
+			@badge.Badge(badge.Props{Variant: badge.VariantSecondary}) {
+				Pending
+			}
+		case job.SeriesStatusRunning:
+			@badge.Badge(badge.Props{Class: "bg-blue-100 text-blue-800 border-blue-200"}) {
+				Running
+			}
+		case job.SeriesStatusCompleted:
+			@badge.Badge(badge.Props{Class: "bg-green-100 text-green-800 border-green-200"}) {
+				Completed
+			}
+		case job.SeriesStatusFailed:
+			@badge.Badge(badge.Props{Variant: badge.VariantDestructive}) {
+				Failed
+			}
+	}
+}
+
+func formatInt(n int) string {
+	return fmt.Sprintf("%d", n)
+}

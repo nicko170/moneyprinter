@@ -1,0 +1,7 @@
+{
+  "componentsDir": "components",
+  "utilsDir": "utils",
+  "moduleName": "github.com/17twenty/moneyprinter",
+  "jsDir": "static/js",
+  "jsPublicPath": "/static/js"
+}

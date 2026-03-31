@@ -1,0 +1,58 @@
+package templates
+
+import (
+	"fmt"
+	"github.com/moneyprinter/components/card"
+	"github.com/moneyprinter/internal/job"
+)
+
+templ SeriesDetail(s *job.Series, jobs []*job.Job) {
+	@Layout("Series: " + s.Theme) {
+		<div class="flex items-center gap-3 mb-6">
+			<a href="/jobs" class="text-muted-foreground hover:text-foreground text-sm">← Dashboard</a>
+		</div>
+		<div class="flex items-center justify-between mb-6">
+			<div>
+				<h1 class="text-2xl font-bold">{ s.Theme }</h1>
+				<p class="text-sm text-muted-foreground mt-1">
+					{ fmt.Sprintf("%d", s.EpisodeCount) } episodes · Created { s.CreatedAt.Format("Jan 2 15:04") }
+				</p>
+			</div>
+			@seriesStatusBadge(s.Status)
+		</div>
+		<div class="grid gap-3">
+			for i, j := range jobs {
+				@card.Card(card.Props{Class: "hover:shadow-md transition-shadow"}) {
+					<a href={ templ.SafeURL("/jobs/" + j.ID) } class="block p-4">
+						<div class="flex items-center justify-between gap-4 overflow-hidden">
+							<div class="min-w-0 flex-1">
+								<p class="text-xs text-muted-foreground mb-1">Episode { fmt.Sprintf("%d", i+1) }</p>
+								<p class="font-medium truncate">{ j.Subject }</p>
+							</div>
+							<div class="flex items-center gap-2 shrink-0">
+								@jobStatusBadge(j.Status)
+								if j.Status == job.StatusCompleted {
+									<a href={ templ.SafeURL("/output/" + j.ID + ".mp4") } class="text-xs text-primary hover:underline" target="_blank">
+										Download
+									</a>
+								}
+							</div>
+						</div>
+					</a>
+				}
+			}
+		</div>
+		<!-- Completed summary -->
+		if s.Status == job.SeriesStatusCompleted {
+			@card.Card(card.Props{Class: "mt-6"}) {
+				@card.Content(card.ContentProps{Class: "py-6 text-center"}) {
+					<p class="text-green-600 font-medium">All episodes complete!</p>
+					<p class="text-sm text-muted-foreground mt-1">
+						Videos are ready for download and upload to your social platforms.
+					</p>
+				}
+			}
+		}
+		<script src="/static/js/series_detail.js"></script>
+	}
+}

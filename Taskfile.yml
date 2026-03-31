@@ -1,0 +1,36 @@
+version: "3"
+
+dotenv: [".env"]
+
+vars:
+  TAILWIND_CMD: npx @tailwindcss/cli
+
+tasks:
+  setup:env:
+    desc: Create state.json from sample if it doesn't exist
+    status:
+      - test -f state.json
+    cmds:
+      - cp sample.state.json state.json
+      - echo "Created state.json from sample.state.json — edit as needed"
+
+  templ:
+    desc: Run templ with integrated server and hot reload
+    cmds:
+      - templ generate --watch --proxy="http://localhost:8080" --cmd="go run ./cmd/server" --open-browser=false
+
+  tailwind:
+    desc: Watch Tailwind CSS changes
+    cmds:
+      - "{{.TAILWIND_CMD}} -i ./static/input.css -o ./static/css/tailwind.css --watch"
+
+  tailwind:build:
+    desc: Build Tailwind CSS for production
+    cmds:
+      - "{{.TAILWIND_CMD}} -i ./static/input.css -o ./static/css/tailwind.css --minify"
+
+  dev:
+    desc: Start development server with hot reload
+    deps: [setup:env]
+    cmds:
+      - task --parallel tailwind templ

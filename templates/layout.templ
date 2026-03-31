@@ -1,0 +1,45 @@
+package templates
+
+templ Layout(title string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ title } — MoneyPrinter</title>
+			<link rel="stylesheet" href="/static/css/tailwind.css"/>
+		</head>
+		<body class="min-h-screen bg-background text-foreground">
+			<!-- Navigation -->
+			<nav class="border-b border-border">
+				<div class="mx-auto max-w-5xl px-4 flex items-center gap-6 h-14">
+					<a href="/jobs" class="font-bold tracking-tight">MoneyPrinter</a>
+					<div class="flex items-center gap-4 text-sm">
+						<a href="/jobs" class="text-muted-foreground hover:text-foreground transition-colors">Dashboard</a>
+						<a href="/jobs/create" class="text-muted-foreground hover:text-foreground transition-colors">Create Job</a>
+						<a href="/series/create" class="text-muted-foreground hover:text-foreground transition-colors">Create Series</a>
+					</div>
+				</div>
+			</nav>
+			<div class="mx-auto max-w-5xl px-4 py-8">
+				{ children... }
+			</div>
+			<!-- Toast container -->
+			<div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2"></div>
+			<!-- Shared utilities -->
+			<script src="/static/js/app.js"></script>
+			<!-- templui component scripts -->
+			<script src="/static/js/collapsible.min.js" type="module"></script>
+			<script src="/static/js/textarea.min.js" type="module"></script>
+			<style>
+				@keyframes indeterminate {
+					0% { transform: translateX(-100%); }
+					100% { transform: translateX(430%); }
+				}
+				.animate-indeterminate {
+					animation: indeterminate 1.6s ease-in-out infinite;
+				}
+			</style>
+		</body>
+	</html>
+}

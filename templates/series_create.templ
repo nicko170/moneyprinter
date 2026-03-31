@@ -1,0 +1,195 @@
+package templates
+
+import (
+	"github.com/moneyprinter/components/button"
+	"github.com/moneyprinter/components/card"
+	"github.com/moneyprinter/components/collapsible"
+	"github.com/moneyprinter/components/input"
+	"github.com/moneyprinter/components/label"
+	"github.com/moneyprinter/components/separator"
+	switchcomp "github.com/moneyprinter/components/switch"
+	"github.com/moneyprinter/components/textarea"
+)
+
+templ SeriesCreate() {
+	@Layout("Create Series") {
+		<h1 class="text-2xl font-bold mb-2">Create Content Series</h1>
+		<p class="text-muted-foreground mb-6">Generate multiple videos on a theme. The AI will create distinct topics for each episode.</p>
+		@card.Card() {
+			@card.Content(card.ContentProps{Class: "pt-6"}) {
+				<form id="seriesForm" onsubmit="return false;">
+					<div class="space-y-2">
+						@label.Label(label.Props{For: "theme"}) {
+							Series Theme
+						}
+						@textarea.Textarea(textarea.Props{
+							ID:          "theme",
+							Name:        "theme",
+							Placeholder: "e.g. Explaining distillation for different spirits",
+							Rows:        3,
+							AutoResize:  true,
+						})
+					</div>
+					<!-- Background Material -->
+					<div class="space-y-2 mt-4">
+						@label.Label(label.Props{For: "seriesContext"}) {
+							Background Material
+						}
+						<p class="text-xs text-muted-foreground -mt-1">
+							Paste articles, research, product info — every episode will use this as factual source material.
+						</p>
+						@textarea.Textarea(textarea.Props{
+							ID:          "seriesContext",
+							Name:        "context",
+							Placeholder: "e.g. Press release, benchmarks, research notes…",
+							Rows:        5,
+							AutoResize:  true,
+						})
+					</div>
+					<!-- Hook Style + Tone -->
+					<div class="grid grid-cols-2 gap-4 mt-4">
+						<div class="space-y-2">
+							@label.Label(label.Props{For: "hookStyle"}) {
+								Hook Style
+							}
+							@hookStyleSelect()
+						</div>
+						<div class="space-y-2">
+							@label.Label(label.Props{For: "tonePreset"}) {
+								Tone
+							}
+							@tonePresetSelect()
+						</div>
+					</div>
+					<div id="customHookField" class="hidden space-y-2 mt-3">
+						@label.Label(label.Props{For: "customHook"}) {
+							Custom Hook Instruction
+						}
+						@input.Input(input.Props{
+							ID:          "customHook",
+							Name:        "customHook",
+							Placeholder: "e.g. Open with a rhetorical question about the topic",
+						})
+					</div>
+					<div class="grid grid-cols-2 gap-4 mt-4">
+						<div class="space-y-2">
+							@label.Label(label.Props{For: "episodeCount"}) {
+								Number of Episodes
+							}
+							<input id="episodeCount" name="episodeCount" type="number" value="5" min="2" max="20" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"/>
+						</div>
+						<div class="space-y-2">
+							@label.Label(label.Props{For: "seriesVoice"}) {
+								Voice
+							}
+							@voiceSelect()
+						</div>
+						<div class="space-y-2">
+							@label.Label(label.Props{For: "subtitlesPosition"}) {
+								Subtitle Position
+							}
+							@subtitlePositionSelect()
+						</div>
+						<div class="space-y-2">
+							@label.Label(label.Props{For: "subtitlesColor"}) {
+								Subtitle Color
+							}
+							@subtitleColorSelect()
+						</div>
+						<div class="space-y-2">
+							@label.Label(label.Props{For: "paragraphNumber"}) {
+								Paragraphs per Episode
+							}
+							<input id="paragraphNumber" name="paragraphNumber" type="number" value="1" min="1" max="10" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"/>
+						</div>
+					</div>
+					<!-- Video Settings -->
+					@collapsible.Collapsible(collapsible.Props{Class: "mt-6"}) {
+						@collapsible.Trigger(collapsible.TriggerProps{Class: "flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"}) {
+							<svg class="h-4 w-4 transition-transform [[data-tui-collapsible-state=open]_&]:rotate-180" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+								<path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"></path>
+							</svg>
+							Video Settings
+						}
+						@collapsible.Content(collapsible.ContentProps{Class: "mt-4 space-y-4"}) {
+							<p class="text-xs text-muted-foreground">Effects are randomly applied per clip segment. Applied to every episode.</p>
+							<div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+								<div class="flex items-center gap-2">
+									@switchcomp.Switch(switchcomp.Props{ID: "effectSlowmo", Name: "effectSlowmo"})
+									@label.Label(label.Props{For: "effectSlowmo", Class: "text-sm font-normal cursor-pointer"}) {
+										Slow Motion
+									}
+								</div>
+								<div class="flex items-center gap-2">
+									@switchcomp.Switch(switchcomp.Props{ID: "effectKenburns", Name: "effectKenburns"})
+									@label.Label(label.Props{For: "effectKenburns", Class: "text-sm font-normal cursor-pointer"}) {
+										Ken Burns (zoom)
+									}
+								</div>
+								<div class="flex items-center gap-2">
+									@switchcomp.Switch(switchcomp.Props{ID: "useMusicToggle", Name: "useMusic"})
+									@label.Label(label.Props{For: "useMusicToggle", Class: "text-sm font-normal cursor-pointer"}) {
+										Background Music
+									}
+								</div>
+							</div>
+							@separator.Separator(separator.Props{Class: "my-4"})
+							<!-- End Card Toggle -->
+							<div class="flex items-center gap-2">
+								@switchcomp.Switch(switchcomp.Props{ID: "enableEndCard", Name: "enableEndCard", Attributes: templ.Attributes{"onchange": "document.getElementById('endCardFields').classList.toggle('hidden', !this.checked)"}})
+								@label.Label(label.Props{For: "enableEndCard", Class: "text-sm font-medium cursor-pointer"}) {
+									End Card
+								}
+								<span class="text-xs text-muted-foreground">— applied to every episode</span>
+							</div>
+							<div id="endCardFields" class="hidden space-y-4 pl-4 border-l-2 border-border">
+								<div class="grid grid-cols-2 gap-4">
+									<div class="space-y-2">
+										@label.Label(label.Props{For: "endCardBgColor"}) {
+											Background Color
+										}
+										<input id="endCardBgColor" name="endCardBgColor" type="color" value="#000000" class="h-9 w-full rounded-md border border-input cursor-pointer"/>
+									</div>
+									<div class="space-y-2">
+										@label.Label(label.Props{For: "endCardDuration"}) {
+											Duration (seconds)
+										}
+										@input.Input(input.Props{
+											ID:    "endCardDuration",
+											Name:  "endCardDuration",
+											Type:  "number",
+											Value: "4",
+										})
+									</div>
+								</div>
+								<div class="space-y-2">
+									@label.Label(label.Props{For: "endCardCTAText"}) {
+										CTA Text
+									}
+									@input.Input(input.Props{
+										ID:          "endCardCTAText",
+										Name:        "endCardCTAText",
+										Placeholder: "e.g. Follow us at www.example.com",
+									})
+								</div>
+								<div class="space-y-2">
+									@label.Label(label.Props{For: "endCardLogo"}) {
+										Logo Image
+									}
+									<input id="endCardLogo" name="endCardLogo" type="file" accept="image/*" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm file:mr-4 file:rounded file:border-0 file:bg-primary file:px-2 file:py-1 file:text-xs file:text-primary-foreground"/>
+								</div>
+							</div>
+						}
+					}
+					@separator.Separator(separator.Props{Class: "my-6"})
+					<div>
+						@button.Button(button.Props{ID: "createSeriesButton", Type: "button", Class: "w-full"}) {
+							Generate Series
+						}
+					</div>
+				</form>
+			}
+		}
+		<script src="/static/js/series_create.js"></script>
+	}
+}

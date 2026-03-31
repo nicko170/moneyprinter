@@ -1,0 +1,16 @@
+{
+  "inference_url": "",
+  "inference_api_key": "",
+  "inference_model": "",
+  "pexels_api_key": "",
+  "tts_provider": "tiktok",
+  "tts_tiktok_session_id": "",
+  "tts_chatterbox_url": "http://localhost:7860",
+  "tts_chatterbox_voice_ref": "",
+  "assembly_ai_api_key": "",
+  "imagemagick_binary": "",
+  "output_dir": "./output",
+  "temp_dir": "./temp",
+  "fonts_dir": "./fonts",
+  "songs_dir": "./songs"
+}

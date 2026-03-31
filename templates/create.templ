@@ -1,0 +1,312 @@
+package templates
+
+import (
+	"github.com/moneyprinter/components/badge"
+	"github.com/moneyprinter/components/button"
+	"github.com/moneyprinter/components/card"
+	"github.com/moneyprinter/components/collapsible"
+	"github.com/moneyprinter/components/input"
+	"github.com/moneyprinter/components/label"
+	"github.com/moneyprinter/components/separator"
+	switchcomp "github.com/moneyprinter/components/switch"
+	"github.com/moneyprinter/components/textarea"
+)
+
+type CreateJobProps struct {
+	InferenceURL   string
+	InferenceModel string
+	TTSProvider    string
+}
+
+templ CreateJob(props CreateJobProps) {
+	@Layout("Create Job") {
+		<h1 class="text-2xl font-bold mb-2">Create Job</h1>
+		<div class="flex gap-3 text-xs text-muted-foreground mb-6">
+			if props.InferenceURL != "" {
+				<span>Model: { props.InferenceModel }</span>
+			} else {
+				@badge.Badge(badge.Props{Variant: badge.VariantDestructive}) {
+					No inference URL configured
+				}
+			}
+			<span>TTS: { props.TTSProvider }</span>
+		</div>
+		@card.Card() {
+			@card.Content(card.ContentProps{Class: "pt-6"}) {
+				<form id="generateForm" onsubmit="return false;">
+					<div class="space-y-2">
+						@label.Label(label.Props{For: "videoSubject"}) {
+							Video Subject
+						}
+						@textarea.Textarea(textarea.Props{
+							ID:          "videoSubject",
+							Name:        "videoSubject",
+							Placeholder: "What should the video be about?",
+							Rows:        3,
+							AutoResize:  true,
+						})
+					</div>
+					<!-- Background Material -->
+					<div class="space-y-2 mt-4">
+						@label.Label(label.Props{For: "context"}) {
+							Background Material
+						}
+						<p class="text-xs text-muted-foreground -mt-1">
+							Paste articles, research, product info — the AI will weave this into the script as factual source material.
+						</p>
+						@textarea.Textarea(textarea.Props{
+							ID:          "context",
+							Name:        "context",
+							Placeholder: "e.g. Press release, benchmarks, research notes, product specs…",
+							Rows:        5,
+							AutoResize:  true,
+						})
+					</div>
+					<!-- Hook Style + Tone — primary creative choices -->
+					<div class="grid grid-cols-2 gap-4 mt-4">
+						<div class="space-y-2">
+							@label.Label(label.Props{For: "hookStyle"}) {
+								Hook Style
+							}
+							@hookStyleSelect()
+						</div>
+						<div class="space-y-2">
+							@label.Label(label.Props{For: "tonePreset"}) {
+								Tone
+							}
+							@tonePresetSelect()
+						</div>
+					</div>
+					<!-- Custom hook (shown only when "Custom" is selected) -->
+					<div id="customHookField" class="hidden space-y-2 mt-3">
+						@label.Label(label.Props{For: "customHook"}) {
+							Custom Hook Instruction
+						}
+						@input.Input(input.Props{
+							ID:          "customHook",
+							Name:        "customHook",
+							Placeholder: "e.g. Open with a rhetorical question about evolution",
+						})
+					</div>
+					@collapsible.Collapsible(collapsible.Props{Class: "mt-6"}) {
+						@collapsible.Trigger(collapsible.TriggerProps{Class: "flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"}) {
+							<svg class="h-4 w-4 transition-transform [[data-tui-collapsible-state=open]_&]:rotate-180" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+								<path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"></path>
+							</svg>
+							Advanced Options
+						}
+						@collapsible.Content(collapsible.ContentProps{Class: "mt-4 space-y-4"}) {
+							<div class="grid grid-cols-2 gap-4">
+								<div class="space-y-2">
+									@label.Label(label.Props{For: "voice"}) {
+										Voice
+									}
+									@voiceSelect()
+								</div>
+								<div class="space-y-2">
+									@label.Label(label.Props{For: "subtitlesPosition"}) {
+										Subtitle Position
+									}
+									@subtitlePositionSelect()
+								</div>
+								<div class="space-y-2">
+									@label.Label(label.Props{For: "subtitlesColor"}) {
+										Subtitle Color
+									}
+									@subtitleColorSelect()
+								</div>
+								<div class="space-y-2">
+									@label.Label(label.Props{For: "paragraphNumber"}) {
+										Paragraphs
+									}
+									<input id="paragraphNumber" name="paragraphNumber" type="number" value="1" min="1" max="10" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"/>
+								</div>
+							</div>
+							<div class="space-y-2">
+								@label.Label(label.Props{For: "customPrompt"}) {
+									Custom Prompt
+								}
+								@textarea.Textarea(textarea.Props{
+									ID:          "customPrompt",
+									Name:        "customPrompt",
+									Placeholder: "Override the default AI prompt",
+									Rows:        3,
+								})
+							</div>
+						}
+					}
+					<!-- Video Settings -->
+					@collapsible.Collapsible(collapsible.Props{Class: "mt-6"}) {
+						@collapsible.Trigger(collapsible.TriggerProps{Class: "flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"}) {
+							<svg class="h-4 w-4 transition-transform [[data-tui-collapsible-state=open]_&]:rotate-180" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+								<path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"></path>
+							</svg>
+							Video Settings
+						}
+						@collapsible.Content(collapsible.ContentProps{Class: "mt-4 space-y-4"}) {
+							<!-- Effects (toggles — randomly applied per clip) -->
+							<p class="text-xs text-muted-foreground">Effects are randomly applied per clip segment to keep looped footage interesting.</p>
+							<div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+								<div class="flex items-center gap-2">
+									@switchcomp.Switch(switchcomp.Props{ID: "effectSlowmo", Name: "effectSlowmo"})
+									@label.Label(label.Props{For: "effectSlowmo", Class: "text-sm font-normal cursor-pointer"}) {
+										Slow Motion
+									}
+								</div>
+								<div class="flex items-center gap-2">
+									@switchcomp.Switch(switchcomp.Props{ID: "effectKenburns", Name: "effectKenburns"})
+									@label.Label(label.Props{For: "effectKenburns", Class: "text-sm font-normal cursor-pointer"}) {
+										Ken Burns (zoom)
+									}
+								</div>
+								<div class="flex items-center gap-2">
+									@switchcomp.Switch(switchcomp.Props{ID: "useMusicToggle", Name: "useMusic"})
+									@label.Label(label.Props{For: "useMusicToggle", Class: "text-sm font-normal cursor-pointer"}) {
+										Background Music
+									}
+								</div>
+							</div>
+							@separator.Separator(separator.Props{Class: "my-4"})
+							<!-- End Card Toggle -->
+							<div class="flex items-center gap-2">
+								@switchcomp.Switch(switchcomp.Props{ID: "enableEndCard", Name: "enableEndCard", Attributes: templ.Attributes{"onchange": "document.getElementById('endCardFields').classList.toggle('hidden', !this.checked)"}})
+								@label.Label(label.Props{For: "enableEndCard", Class: "text-sm font-medium cursor-pointer"}) {
+									End Card
+								}
+								<span class="text-xs text-muted-foreground">— branded closing screen with logo and CTA</span>
+							</div>
+							<div id="endCardFields" class="hidden space-y-4 pl-4 border-l-2 border-border">
+								<div class="grid grid-cols-2 gap-4">
+									<div class="space-y-2">
+										@label.Label(label.Props{For: "endCardBgColor"}) {
+											Background Color
+										}
+										<input id="endCardBgColor" name="endCardBgColor" type="color" value="#000000" class="h-9 w-full rounded-md border border-input cursor-pointer"/>
+									</div>
+									<div class="space-y-2">
+										@label.Label(label.Props{For: "endCardDuration"}) {
+											Duration (seconds)
+										}
+										@input.Input(input.Props{
+											ID:    "endCardDuration",
+											Name:  "endCardDuration",
+											Type:  "number",
+											Value: "4",
+										})
+									</div>
+								</div>
+								<div class="space-y-2">
+									@label.Label(label.Props{For: "endCardCTAText"}) {
+										CTA Text
+									}
+									@input.Input(input.Props{
+										ID:          "endCardCTAText",
+										Name:        "endCardCTAText",
+										Placeholder: "e.g. Follow us at www.example.com",
+									})
+								</div>
+								<div class="space-y-2">
+									@label.Label(label.Props{For: "endCardLogo"}) {
+										Logo Image
+									}
+									<input id="endCardLogo" name="endCardLogo" type="file" accept="image/*" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm file:mr-4 file:rounded file:border-0 file:bg-primary file:px-2 file:py-1 file:text-xs file:text-primary-foreground"/>
+								</div>
+							</div>
+						}
+					}
+					@separator.Separator(separator.Props{Class: "my-6"})
+					@button.Button(button.Props{ID: "generateButton", Type: "button", Class: "w-full"}) {
+						<svg class="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+							<path d="M6.3 2.84A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.27l9.344-5.891a1.5 1.5 0 000-2.538L6.3 2.84z"></path>
+						</svg>
+						Generate
+					}
+				</form>
+			}
+		}
+		<script src="/static/js/create.js"></script>
+	}
+}
+
+templ voiceSelect() {
+	<select id="voice" name="voice" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+		<optgroup label="English (US)">
+			<option value="en_us_001" selected>Female 1</option>
+			<option value="en_us_002">Female 2</option>
+			<option value="en_us_006">Male 1</option>
+			<option value="en_us_007">Male 2</option>
+			<option value="en_us_009">Male 3</option>
+			<option value="en_us_010">Male 4</option>
+		</optgroup>
+		<optgroup label="English (UK)">
+			<option value="en_uk_001">Male 1</option>
+			<option value="en_uk_003">Male 2</option>
+		</optgroup>
+		<optgroup label="English (AU)">
+			<option value="en_au_001">Female</option>
+			<option value="en_au_002">Male</option>
+		</optgroup>
+		<optgroup label="Character">
+			<option value="en_us_ghostface">Ghost Face</option>
+			<option value="en_us_c3po">C3PO</option>
+			<option value="en_us_stitch">Stitch</option>
+			<option value="en_us_rocket">Rocket</option>
+		</optgroup>
+		<optgroup label="Other">
+			<option value="en_male_narration">Narrator</option>
+			<option value="en_male_funny">Wacky</option>
+			<option value="en_female_emotional">Peaceful</option>
+		</optgroup>
+	</select>
+}
+
+templ subtitlePositionSelect() {
+	<select id="subtitlesPosition" name="subtitlesPosition" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+		<option value="center,bottom" selected>Center · Bottom</option>
+		<option value="center,top">Center · Top</option>
+		<option value="center,center">Center · Center</option>
+		<option value="left,bottom">Left · Bottom</option>
+		<option value="right,bottom">Right · Bottom</option>
+	</select>
+}
+
+templ hookStyleSelect() {
+	<select id="hookStyle" name="hookStyle" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" onchange="document.getElementById('customHookField').classList.toggle('hidden', this.value !== 'custom')">
+		<option value="">None (LLM decides)</option>
+		<option value="didyouknow">Did you know...</option>
+		<option value="controversial">Hot take 🔥</option>
+		<option value="question">Rhetorical question ❓</option>
+		<option value="myth">Myth buster</option>
+		<option value="story">Mini story</option>
+		<option value="listicle">Numbered list</option>
+		<option value="challenge">Challenge</option>
+		<option value="stopscrolling">Stop scrolling 🛑</option>
+		<option value="custom">Custom hook...</option>
+	</select>
+}
+
+templ tonePresetSelect() {
+	<select id="tonePreset" name="tonePreset" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+		<option value="">Default</option>
+		<option value="informative">Informative 📚</option>
+		<option value="hype">Hype / Excited ⚡</option>
+		<option value="sarcastic">Sarcastic / Witty 😏</option>
+		<option value="dramatic">Dramatic / Epic 🎬</option>
+		<option value="casual">Casual / Chill 😎</option>
+		<option value="professional">Professional 💼</option>
+	</select>
+}
+
+templ subtitleColorSelect() {
+	<div class="relative">
+		<span id="colorDot" class="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full" style="background:#FFFF00"></span>
+		<select id="subtitlesColor" name="color" class="flex h-9 w-full rounded-md border border-input bg-transparent pl-8 pr-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" onchange="document.getElementById('colorDot').style.background=this.value">
+			<option value="#FFFF00" selected>Yellow</option>
+			<option value="#f4a261">Orange</option>
+			<option value="#e63946">Red</option>
+			<option value="#1d3557">Blue</option>
+			<option value="#ffffff">White</option>
+			<option value="#03071e">Black</option>
+		</select>
+	</div>
+}

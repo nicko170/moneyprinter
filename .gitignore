@@ -1,0 +1,7 @@
+.claude
+/temp
+/output
+state.json
+jobs.json
+/node_modules
+.DS_Store
