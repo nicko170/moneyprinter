@@ -225,6 +225,30 @@ func (j *Job) MarkCancelled(reason string) {
 	j.appendEventLocked("cancelled", "warning", reason)
 }
 
+// Requeue resets a completed/failed job back to queued so the worker picks it up again.
+// The job keeps its ID so the existing temp dir (cached assets) is reused.
+func (q *Queue) Requeue(id string) bool {
+	j := q.Get(id)
+	if j == nil {
+		return false
+	}
+	j.mu.Lock()
+	if j.Status != StatusCompleted && j.Status != StatusFailed && j.Status != StatusCancelled {
+		j.mu.Unlock()
+		return false
+	}
+	j.Status = StatusQueued
+	j.ResultPath = ""
+	j.ErrorMessage = ""
+	j.CancelRequested = false
+	j.CompletedAt = time.Time{}
+	j.StartedAt = time.Time{}
+	j.appendEventLocked("requeued", "info", "Job re-queued for re-processing")
+	j.mu.Unlock()
+	q.persist()
+	return true
+}
+
 // AppendLog adds a log event to the job.
 func (j *Job) AppendLog(message, level string) {
 	j.mu.Lock()

@@ -476,7 +476,7 @@ func CreateJob(props CreateJobProps) templ.Component {
 									}()
 								}
 								ctx = templ.InitializeContext(ctx)
-								templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "Paragraphs")
+								templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "Script Length")
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
 								}
@@ -486,7 +486,7 @@ func CreateJob(props CreateJobProps) templ.Component {
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<input id=\"paragraphNumber\" name=\"paragraphNumber\" type=\"number\" value=\"1\" min=\"1\" max=\"10\" class=\"flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring\"></div></div><div class=\"space-y-2\">")
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<select id=\"paragraphNumber\" name=\"paragraphNumber\" class=\"flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring\"><option value=\"1\" selected>Short (30-60s)</option> <option value=\"2\">Medium (60-90s)</option> <option value=\"3\">Long (90-120s)</option></select></div></div><div class=\"space-y-2\">")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}

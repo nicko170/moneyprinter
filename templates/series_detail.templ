@@ -2,6 +2,8 @@ package templates
 
 import (
 	"fmt"
+	"path/filepath"
+	"github.com/moneyprinter/components/button"
 	"github.com/moneyprinter/components/card"
 	"github.com/moneyprinter/internal/job"
 )
@@ -18,27 +20,37 @@ templ SeriesDetail(s *job.Series, jobs []*job.Job) {
 					{ fmt.Sprintf("%d", s.EpisodeCount) } episodes · Created { s.CreatedAt.Format("Jan 2 15:04") }
 				</p>
 			</div>
-			@seriesStatusBadge(s.Status)
+			<div class="flex items-center gap-3">
+				if s.Status == job.SeriesStatusCompleted {
+					@button.Button(button.Props{
+						ID:      "reburnButton",
+						Type:    "button",
+						Variant: button.VariantOutline,
+						Size:    button.SizeSm,
+					}) {
+						Reburn Subtitles
+					}
+				}
+				@seriesStatusBadge(s.Status)
+			</div>
 		</div>
 		<div class="grid gap-3">
 			for i, j := range jobs {
 				@card.Card(card.Props{Class: "hover:shadow-md transition-shadow"}) {
-					<a href={ templ.SafeURL("/jobs/" + j.ID) } class="block p-4">
-						<div class="flex items-center justify-between gap-4 overflow-hidden">
-							<div class="min-w-0 flex-1">
-								<p class="text-xs text-muted-foreground mb-1">Episode { fmt.Sprintf("%d", i+1) }</p>
-								<p class="font-medium truncate">{ j.Subject }</p>
-							</div>
-							<div class="flex items-center gap-2 shrink-0">
-								@jobStatusBadge(j.Status)
-								if j.Status == job.StatusCompleted {
-									<a href={ templ.SafeURL("/output/" + j.ID + ".mp4") } class="text-xs text-primary hover:underline" target="_blank">
-										Download
-									</a>
+					<div class="flex items-center justify-between gap-4 overflow-hidden p-4">
+						<a href={ templ.SafeURL("/jobs/" + j.ID) } class="min-w-0 flex-1">
+							<p class="text-xs text-muted-foreground mb-1">Episode { fmt.Sprintf("%d", i+1) }</p>
+							<p class="font-medium truncate">{ j.Subject }</p>
+						</a>
+						<div class="flex items-center gap-3 shrink-0">
+							@jobStatusBadge(j.Status)
+							if j.Status == job.StatusCompleted {
+								@button.Button(button.Props{Href: "/output/" + filepath.Base(j.ResultPath), Size: button.SizeSm, Variant: button.VariantOutline}) {
+									Download
 								}
-							</div>
+							}
 						</div>
-					</a>
+					</div>
 				}
 			}
 		</div>

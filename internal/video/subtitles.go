@@ -22,8 +22,8 @@ type SentenceTiming struct {
 // Regular hyphens (-) are kept as word joiners (e.g. "hyper-stimulated").
 var dashRe = regexp.MustCompile(`[—–‑\x{2011}\x{2013}\x{2014}]`)
 
-// punctuation to strip from display — keep ? and ! for energy
-var punctuationRe = regexp.MustCompile(`[.,;:"'"'""()\[\]{}…\x{2018}\x{2019}\x{201C}\x{201D}\x{2026}]+`)
+// punctuation to strip — periods and % handled separately to preserve decimals/percentages
+var punctuationRe = regexp.MustCompile(`[,;:"'"'""()\[\]{}…\x{2018}\x{2019}\x{201C}\x{201D}\x{2026}]+`)
 
 // nonLatinRe strips everything outside basic printable ASCII + common accented
 // Latin characters. This catches emoji, zero-width joiners, invisible formatters,
@@ -97,6 +97,25 @@ func GenerateSRTContent(timings []SentenceTiming, position string) (string, erro
 	return sb.String(), nil
 }
 
+// stripSentenceDots removes periods that aren't decimal points (between digits).
+func stripSentenceDots(s string) string {
+	runes := []rune(s)
+	var out []rune
+	for i, r := range runes {
+		if r == '.' {
+			prevDigit := i > 0 && runes[i-1] >= '0' && runes[i-1] <= '9'
+			nextDigit := i+1 < len(runes) && runes[i+1] >= '0' && runes[i+1] <= '9'
+			if prevDigit && nextDigit {
+				out = append(out, r) // keep decimal point
+				continue
+			}
+			continue // strip sentence-ending dot
+		}
+		out = append(out, r)
+	}
+	return string(out)
+}
+
 // cleanForDisplay strips non-renderable characters, replaces hyphens,
 // removes punctuation, and converts to Title Case (preserving all-caps words).
 func cleanForDisplay(text string) string {
@@ -104,8 +123,10 @@ func cleanForDisplay(text string) string {
 	cleaned := dashRe.ReplaceAllString(text, " ")
 	// Strip emoji, zero-width chars, and anything outside Latin range.
 	cleaned = nonLatinRe.ReplaceAllString(cleaned, "")
-	// Strip remaining punctuation.
+	// Strip punctuation (but not dots or %).
 	cleaned = punctuationRe.ReplaceAllString(cleaned, "")
+	// Strip dots only when not decimal points between digits.
+	cleaned = stripSentenceDots(cleaned)
 	// Collapse multiple spaces.
 	cleaned = strings.Join(strings.Fields(cleaned), " ")
 

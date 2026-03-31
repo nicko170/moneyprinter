@@ -181,6 +181,52 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "success", "message": "Cancellation requested"})
 	})
 
+	// Reburn a single job: clear subtitle cache and re-queue.
+	mux.HandleFunc("POST /api/jobs/{id}/reburn", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		j := queue.Get(id)
+		if j == nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Job not found"})
+			return
+		}
+		// Delete cached subtitle artifacts so the pipeline regenerates them.
+		tempDir := filepath.Join(cfg.TempDir, id)
+		for _, f := range []string{"subtitles.srt", "subtitled.mp4", "merged.mp4", "with_endcard.mp4"} {
+			os.Remove(filepath.Join(tempDir, f))
+		}
+		if !queue.Requeue(id) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"status": "error", "message": "Job cannot be re-queued"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "success", "message": "Job re-queued for subtitle reburn"})
+	})
+
+	// Reburn all jobs in a series.
+	mux.HandleFunc("POST /api/series/{id}/reburn", func(w http.ResponseWriter, r *http.Request) {
+		seriesID := r.PathValue("id")
+		jobs := queue.ListBySeries(seriesID)
+		if len(jobs) == 0 {
+			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Series not found or has no jobs"})
+			return
+		}
+		requeued := 0
+		for _, j := range jobs {
+			tempDir := filepath.Join(cfg.TempDir, j.ID)
+			for _, f := range []string{"subtitles.srt", "subtitled.mp4", "merged.mp4", "with_endcard.mp4"} {
+				os.Remove(filepath.Join(tempDir, f))
+			}
+			if queue.Requeue(j.ID) {
+				requeued++
+			}
+		}
+		series.UpdateStatus(seriesID, queue)
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"status":   "success",
+			"message":  fmt.Sprintf("Re-queued %d jobs for subtitle reburn", requeued),
+			"requeued": requeued,
+		})
+	})
+
 	mux.HandleFunc("POST /api/series", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Theme        string `json:"theme"`
@@ -217,7 +263,7 @@ func main() {
 
 		// Submit a job for each topic.
 		var jobIDs []string
-		for _, topic := range topics {
+		for i, topic := range topics {
 			paragraphs := req.ParagraphNum
 			if paragraphs <= 0 {
 				paragraphs = 1
@@ -238,6 +284,8 @@ func main() {
 				EndCardCTAText:  req.EndCardCTAText,
 				EndCardLogoPath: req.EndCardLogoPath,
 				EndCardDuration: req.EndCardDuration,
+				SeriesTheme:     req.Theme,
+				EpisodeIndex:    i + 1,
 			}
 			payload, _ := json.Marshal(params)
 			jobID := queue.SubmitWithSeries(payload, topic, ser.ID)

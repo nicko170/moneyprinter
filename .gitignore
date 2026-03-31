@@ -3,5 +3,6 @@
 /output
 state.json
 jobs.json
+series.json
 /node_modules
 .DS_Store

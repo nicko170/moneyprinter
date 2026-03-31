@@ -13,6 +13,7 @@ import (
 	"github.com/moneyprinter/components/button"
 	"github.com/moneyprinter/components/card"
 	"github.com/moneyprinter/internal/job"
+	"path/filepath"
 )
 
 func JobDetail(j *job.Job) templ.Component {
@@ -55,7 +56,7 @@ func JobDetail(j *job.Job) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(j.Subject)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/detail.templ`, Line: 17, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/detail.templ`, Line: 18, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -68,7 +69,7 @@ func JobDetail(j *job.Job) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(j.ID[:8])
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/detail.templ`, Line: 19, Col: 19}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/detail.templ`, Line: 20, Col: 19}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -81,7 +82,7 @@ func JobDetail(j *job.Job) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(j.CreatedAt.Format("Jan 2 15:04:05"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/detail.templ`, Line: 19, Col: 71}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/detail.templ`, Line: 20, Col: 71}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -259,7 +260,7 @@ func JobDetail(j *job.Job) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = button.Button(button.Props{Href: "/output/" + j.ID + ".mp4", Size: button.SizeSm}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = button.Button(button.Props{Href: "/output/" + filepath.Base(j.ResultPath), Size: button.SizeSm}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -317,7 +318,7 @@ func JobDetail(j *job.Job) templ.Component {
 							var templ_7745c5c3_Var15 string
 							templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(j.ErrorMessage)
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/detail.templ`, Line: 94, Col: 69}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/detail.templ`, Line: 95, Col: 69}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 							if templ_7745c5c3_Err != nil {
@@ -411,7 +412,7 @@ func JobDetail(j *job.Job) templ.Component {
 				var templ_7745c5c3_Var18 templ.SafeURL
 				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/series/" + j.SeriesID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/detail.templ`, Line: 122, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/detail.templ`, Line: 123, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 				if templ_7745c5c3_Err != nil {
@@ -429,7 +430,7 @@ func JobDetail(j *job.Job) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(j.ID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/detail.templ`, Line: 129, Col: 28}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/detail.templ`, Line: 130, Col: 28}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {

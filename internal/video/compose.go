@@ -147,14 +147,22 @@ func BurnSubtitles(ctx context.Context, videoPath, srtPath, fontPath, textColor,
 
 	textBGR := hexToBGR(textColor)
 
+	// Pick outline/shadow colours for contrast: dark text gets white outline, light text gets black.
+	outlineColour := "000000" // black outline (default for light/bright text)
+	shadowColour := "80000000"
+	if isColorDark(textColor) {
+		outlineColour = "FFFFFF" // white outline for dark text
+		shadowColour = "80FFFFFF"
+	}
+
 	// Calculate font size dynamically based on longest subtitle line.
 	fontSize := calcFontSize(srtPath, 1080, 100)
 
 	// BorderStyle=1: outline + drop shadow. Clean TikTok look.
 	// Alignment is handled by \an tags in the SRT cues, not here.
 	style := fmt.Sprintf(
-		"FontName=TikTok Sans,Bold=1,FontSize=%d,PrimaryColour=&H00%s&,OutlineColour=&H00000000&,BorderStyle=1,Outline=3,Shadow=2,ShadowColour=&H80000000&,MarginV=80,MarginL=100,MarginR=100",
-		fontSize, textBGR,
+		"FontName=TikTok Sans,Bold=1,FontSize=%d,PrimaryColour=&H00%s&,OutlineColour=&H00%s&,BorderStyle=1,Outline=3,Shadow=2,ShadowColour=&H%s&,MarginV=80,MarginL=100,MarginR=100",
+		fontSize, textBGR, outlineColour, shadowColour,
 	)
 	escapedSRT := escapeFilterPath(absSRT)
 	subtitleFilter := fmt.Sprintf("subtitles=filename=%s:force_style='%s'", escapedSRT, style)

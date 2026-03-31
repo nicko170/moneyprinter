@@ -33,6 +33,10 @@ type Params struct {
 	UseMusic      bool     `json:"useMusic"`
 	Force         bool     `json:"force"`
 
+	// Naming context (set by worker for series episodes).
+	SeriesTheme  string `json:"seriesTheme,omitempty"`
+	EpisodeIndex int    `json:"episodeIndex,omitempty"` // 1-based
+
 	// End card
 	EndCardBgColor  string `json:"endCardBgColor"`
 	EndCardCTAText  string `json:"endCardCTAText"`
@@ -42,6 +46,31 @@ type Params struct {
 
 // LogFunc is called with progress messages during generation.
 type LogFunc func(message, level string)
+
+// buildOutputName creates a descriptive filename for the final video.
+// Series: series_theme_ep01_jobid.mp4  |  Single: subject_jobid.mp4
+func buildOutputName(params Params, jobID string) string {
+	short := jobID
+	if len(jobID) > 8 {
+		short = jobID[:8]
+	}
+	if params.SeriesTheme != "" && params.EpisodeIndex > 0 {
+		return fmt.Sprintf("%s_ep%02d_%s.mp4", slugify(params.SeriesTheme), params.EpisodeIndex, short)
+	}
+	return fmt.Sprintf("%s_%s.mp4", slugify(params.VideoSubject), short)
+}
+
+// slugify converts a string to a filesystem-safe lowercase slug.
+func slugify(s string) string {
+	s = strings.ToLower(s)
+	s = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(s, "_")
+	s = strings.Trim(s, "_")
+	if len(s) > 60 {
+		s = s[:60]
+		s = strings.TrimRight(s, "_")
+	}
+	return s
+}
 
 // fileExists returns true if path exists and has content.
 func fileExists(path string) bool {
@@ -91,7 +120,7 @@ func Run(ctx context.Context, jobID string, params Params, cfg *state.State, onL
 	combinedPath := filepath.Join(tempDir, "combined.mp4")
 	subtitledPath := filepath.Join(tempDir, "subtitled.mp4")
 	mergedPath := filepath.Join(tempDir, "merged.mp4")
-	finalPath := filepath.Join(cfg.OutputDir, jobID+".mp4")
+	finalPath := filepath.Join(cfg.OutputDir, buildOutputName(params, jobID))
 
 	emit(fmt.Sprintf("Generating video for: %s", params.VideoSubject), "info")
 
