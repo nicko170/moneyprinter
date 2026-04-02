@@ -126,11 +126,38 @@
     });
   }
 
+  // Load social metadata if available
+  async function loadMetadata() {
+    const card = document.getElementById("metadataCard");
+    if (!card) return;
+    try {
+      const resp = await fetch(`/api/jobs/${jobId}/metadata`);
+      if (!resp.ok) return;
+      const meta = await resp.json();
+      document.getElementById("metaTitle").textContent = meta.title || "";
+      document.getElementById("metaDescription").textContent = meta.description || "";
+      const tags = (meta.hashtags || []).map(t => "#" + t).join("  ");
+      document.getElementById("metaHashtags").textContent = tags;
+      card.classList.remove("hidden");
+
+      // Click-to-copy on each field
+      card.querySelectorAll("[id^=meta]").forEach(el => {
+        el.addEventListener("click", () => {
+          navigator.clipboard.writeText(el.textContent);
+          showToast("Copied to clipboard", "success");
+        });
+      });
+    } catch (e) {
+      // No metadata available — card stays hidden
+    }
+  }
+
   // Start polling if job is active
   document.addEventListener("DOMContentLoaded", () => {
     const statusCard = document.getElementById("statusCard");
     if (statusCard && statusCard.querySelector(".animate-pulse")) {
       startPolling();
     }
+    loadMetadata();
   });
 })();

@@ -146,6 +146,22 @@ func Run(ctx context.Context, jobID string, params Params, cfg *state.State, onL
 		emit("Script generated", "success")
 	}
 
+	// --- Step 1b: Generate social media metadata ---
+	metadataPath := filepath.Join(tempDir, "metadata.json")
+	if !fileExists(metadataPath) {
+		emit("Generating social metadata...", "info")
+		meta, err := generateMetadata(ctx, llm, params.VideoSubject, script)
+		if err != nil {
+			emit(fmt.Sprintf("Metadata generation failed, continuing: %v", err), "warning")
+		} else {
+			metaJSON, _ := json.MarshalIndent(meta, "", "  ")
+			os.WriteFile(metadataPath, metaJSON, 0644)
+			emit("Social metadata generated", "success")
+		}
+	} else {
+		emit("Social metadata loaded from cache", "info")
+	}
+
 	// --- Step 2: Generate search terms ---
 	var searchTerms []string
 	if fileExists(termsPath) {
@@ -535,6 +551,49 @@ For context, here is the full text:
 	}
 
 	return terms, nil
+}
+
+// VideoMetadata holds platform-ready social media copy for a generated video.
+type VideoMetadata struct {
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Hashtags    []string `json:"hashtags"`
+}
+
+func generateMetadata(ctx context.Context, llm *inference.Client, subject, script string) (*VideoMetadata, error) {
+	prompt := fmt.Sprintf(`You are a social media expert. Given a short-form video script, generate metadata for posting to YouTube Shorts, TikTok, and Instagram Reels.
+
+Return a JSON object with these fields:
+- "title": a catchy, SEO-friendly title under 70 characters. No emoji.
+- "description": a 1-2 sentence hook that makes people want to watch. Under 150 characters. No emoji.
+- "hashtags": an array of 5-8 relevant hashtags (without the # symbol).
+
+YOU MUST ONLY RETURN VALID JSON. No markdown, no explanation.
+
+Subject: %s
+
+Script:
+%s`, subject, script)
+
+	response, err := llm.Generate(ctx, prompt)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract JSON from response.
+	var meta VideoMetadata
+	if err := json.Unmarshal([]byte(response), &meta); err != nil {
+		re := regexp.MustCompile(`\{[\s\S]*\}`)
+		match := re.FindString(response)
+		if match != "" {
+			if err := json.Unmarshal([]byte(match), &meta); err != nil {
+				return nil, fmt.Errorf("parsing metadata JSON: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("no JSON found in metadata response")
+		}
+	}
+	return &meta, nil
 }
 
 func splitSentences(script string) []string {

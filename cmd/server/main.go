@@ -173,6 +173,18 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "events": j.GetEvents(afterID)})
 	})
 
+	mux.HandleFunc("GET /api/jobs/{id}/metadata", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		metaPath := filepath.Join(cfg.TempDir, id, "metadata.json")
+		data, err := os.ReadFile(metaPath)
+		if err != nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "No metadata available"})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(data)
+	})
+
 	mux.HandleFunc("POST /api/jobs/{id}/cancel", func(w http.ResponseWriter, r *http.Request) {
 		if !queue.Cancel(r.PathValue("id")) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Job not found or already finished"})
