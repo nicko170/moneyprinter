@@ -117,6 +117,54 @@ func main() {
 		})
 	})
 
+	// Voice preview — synthesize a short sample and stream audio back.
+	previewCacheDir := filepath.Join(cfg.TempDir, "preview_cache")
+	os.MkdirAll(previewCacheDir, 0755)
+
+	mux.HandleFunc("POST /api/tts/preview", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Voice string `json:"voice"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Voice == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"status": "error", "message": "voice is required"})
+			return
+		}
+
+		// Check cache first.
+		cached := filepath.Join(previewCacheDir, req.Voice+".mp3")
+		if data, err := os.ReadFile(cached); err == nil && len(data) > 0 {
+			w.Header().Set("Content-Type", "audio/mpeg")
+			w.Write(data)
+			return
+		}
+
+		// Synthesize with a 10s timeout.
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		tmpFile := filepath.Join(previewCacheDir, req.Voice+"_tmp.mp3")
+		defer os.Remove(tmpFile)
+
+		provider := pipeline.SelectTTSProvider(cfg)
+		sampleText := "Here's what this voice sounds like for your video."
+		if err := provider.Synthesize(ctx, sampleText, req.Voice, tmpFile); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"status": "error", "message": fmt.Sprintf("TTS failed: %v", err)})
+			return
+		}
+
+		data, err := os.ReadFile(tmpFile)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"status": "error", "message": "Failed to read audio"})
+			return
+		}
+
+		// Cache for next time.
+		os.WriteFile(cached, data, 0644)
+
+		w.Header().Set("Content-Type", "audio/mpeg")
+		w.Write(data)
+	})
+
 	mux.HandleFunc("POST /api/generate", func(w http.ResponseWriter, r *http.Request) {
 		var params pipeline.Params
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {

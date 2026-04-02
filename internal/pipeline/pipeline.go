@@ -255,7 +255,7 @@ func Run(ctx context.Context, jobID string, params Params, cfg *state.State, onL
 			return "", err
 		}
 		emit("Generating speech...", "info")
-		ttsProvider := selectTTSProvider(cfg)
+		ttsProvider := SelectTTSProvider(cfg)
 		sentences := splitSentences(script)
 		var timings []video.SentenceTiming
 		var audioPaths []string
@@ -428,7 +428,8 @@ func Run(ctx context.Context, jobID string, params Params, cfg *state.State, onL
 	return finalPath, nil
 }
 
-func selectTTSProvider(cfg *state.State) tts.Provider {
+// SelectTTSProvider returns the configured TTS provider.
+func SelectTTSProvider(cfg *state.State) tts.Provider {
 	switch cfg.TTSProvider {
 	case "chatterbox":
 		return &tts.Chatterbox{
