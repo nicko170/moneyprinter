@@ -152,12 +152,53 @@
     }
   }
 
+  // Load all historical events (e.g. on page reload after completion).
+  async function loadAllEvents() {
+    try {
+      const resp = await fetch(`/api/jobs/${jobId}/events?after=0`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.events) {
+        for (const ev of data.events) {
+          appendLog(ev.message, ev.level);
+          if (ev.id > lastEventId) lastEventId = ev.id;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // Load and render the script if available.
+  async function loadScript() {
+    try {
+      const resp = await fetch(`/api/jobs/${jobId}/script`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!data.script) return;
+      const container = document.getElementById("scriptCard");
+      if (!container) return;
+      document.getElementById("scriptText").textContent = data.script;
+      container.classList.remove("hidden");
+    } catch (e) {
+      // no script available
+    }
+  }
+
   // Start polling if job is active
-  document.addEventListener("DOMContentLoaded", () => {
+  async function init() {
+    await loadAllEvents();
     const statusCard = document.getElementById("statusCard");
     if (statusCard && statusCard.querySelector(".animate-pulse")) {
       startPolling();
     }
     loadMetadata();
-  });
+    loadScript();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();

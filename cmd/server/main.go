@@ -516,6 +516,17 @@ func main() {
 		w.Write(data)
 	})
 
+	mux.HandleFunc("GET /api/jobs/{id}/script", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		scriptPath := filepath.Join(cfg.TempDir, id, "script.txt")
+		data, err := os.ReadFile(scriptPath)
+		if err != nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "No script available"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"script": strings.TrimSpace(string(data))})
+	})
+
 	mux.HandleFunc("POST /api/jobs/{id}/cancel", func(w http.ResponseWriter, r *http.Request) {
 		if !queue.Cancel(r.PathValue("id")) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Job not found or already finished"})

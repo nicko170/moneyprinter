@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/moneyprinter/internal/inference"
-	"github.com/moneyprinter/internal/pexels"
 	"github.com/moneyprinter/internal/state"
+	"github.com/moneyprinter/internal/stock"
 	"github.com/moneyprinter/internal/tts"
 	"github.com/moneyprinter/internal/video"
 )
@@ -213,22 +213,26 @@ func Run(ctx context.Context, jobID string, params Params, cfg *state.State, onL
 			return "", err
 		}
 		emit("Searching for stock videos...", "info")
-		var videoURLs []string
+
+		stockCfg := stock.Config{
+			PexelsAPIKey:  cfg.PexelsAPIKey,
+			PixabayAPIKey: cfg.PixabayAPIKey,
+			JinaAPIKey:    cfg.JinaAPIKey,
+		}
+
+		// One candidate per search term — pick the best-scoring result.
 		seen := make(map[string]bool)
+		var videoURLs []string
 		for _, term := range searchTerms {
 			if err := ctx.Err(); err != nil {
 				return "", err
 			}
-			urls, err := pexels.SearchVideos(ctx, term, cfg.PexelsAPIKey, 15, 10)
-			if err != nil {
-				emit(fmt.Sprintf("Search failed for %q: %v", term, err), "warning")
-				continue
-			}
-			for _, u := range urls {
-				if !seen[u] {
-					seen[u] = true
-					videoURLs = append(videoURLs, u)
-					break // one video per search term
+			candidates := stock.SearchAll(ctx, term, stockCfg, 15, 10)
+			for _, c := range candidates {
+				if !seen[c.URL] {
+					seen[c.URL] = true
+					videoURLs = append(videoURLs, c.URL)
+					break // take the top-ranked result for this term
 				}
 			}
 		}
@@ -237,11 +241,11 @@ func Run(ctx context.Context, jobID string, params Params, cfg *state.State, onL
 		}
 
 		emit(fmt.Sprintf("Downloading %d videos...", len(videoURLs)), "info")
-		for _, url := range videoURLs {
+		for _, u := range videoURLs {
 			if err := ctx.Err(); err != nil {
 				return "", err
 			}
-			path, err := video.DownloadVideo(ctx, url, tempDir)
+			path, err := video.DownloadVideo(ctx, u, tempDir)
 			if err != nil {
 				emit(fmt.Sprintf("Download failed: %v", err), "warning")
 				continue
@@ -527,15 +531,22 @@ YOU MUST NOT MENTION THE PROMPT, OR ANYTHING ABOUT THE SCRIPT ITSELF. JUST WRITE
 }
 
 func getSearchTerms(ctx context.Context, llm *inference.Client, subject, script string, count int) ([]string, error) {
-	prompt := fmt.Sprintf(`Generate %d search terms for stock videos, depending on the subject of a video.
-Subject: %s
+	prompt := fmt.Sprintf(`You are selecting B-roll stock footage for a short video about "%s".
 
-The search terms are to be returned as a JSON-Array of strings.
-Each search term should consist of 1-3 words, always add the main subject of the video.
-YOU MUST ONLY RETURN THE JSON-ARRAY OF STRINGS. YOU MUST NOT RETURN ANYTHING ELSE.
+Generate %d visual scene descriptions that would make compelling background footage.
+Each description should depict a specific, concrete visual scene — not abstract concepts or single words.
+Think cinematically: what would look great on screen while someone narrates the script?
 
-For context, here is the full text:
-%s`, count, subject, script)
+Rules:
+- Be specific and visual: "aerial view of a busy city at night" not "city"
+- Vary the shots: close-ups, wide shots, different settings
+- Match the mood and subject of the script
+- 4-10 words per description
+
+Return ONLY a JSON array of strings. No explanation, no markdown.
+
+Script:
+%s`, subject, count, script)
 
 	response, err := llm.Generate(ctx, prompt)
 	if err != nil {

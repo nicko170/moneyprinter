@@ -12,6 +12,8 @@ type State struct {
 	InferenceAPIKey string `json:"inference_api_key"`
 	InferenceModel  string `json:"inference_model"`
 	PexelsAPIKey    string `json:"pexels_api_key"`
+	PixabayAPIKey   string `json:"pixabay_api_key"`
+	JinaAPIKey      string `json:"jina_api_key"`
 
 	// TTS configuration
 	TTSProvider          string `json:"tts_provider"`            // "elevenlabs", "chatterbox", or "tiktok"
@@ -79,6 +81,8 @@ func (s *State) Redacted() State {
 	r := *s
 	r.InferenceAPIKey = redact(r.InferenceAPIKey)
 	r.PexelsAPIKey = redact(r.PexelsAPIKey)
+	r.PixabayAPIKey = redact(r.PixabayAPIKey)
+	r.JinaAPIKey = redact(r.JinaAPIKey)
 	r.TTSElevenLabsAPIKey = redact(r.TTSElevenLabsAPIKey)
 	r.TTSTikTokSessionID = redact(r.TTSTikTokSessionID)
 	r.BraveSearchAPIKey = redact(r.BraveSearchAPIKey)
