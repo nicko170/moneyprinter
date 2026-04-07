@@ -14,12 +14,14 @@ type State struct {
 	PexelsAPIKey    string `json:"pexels_api_key"`
 
 	// TTS configuration
-	TTSProvider         string `json:"tts_provider"`           // "tiktok" or "chatterbox"
-	TTSTikTokSessionID  string `json:"tts_tiktok_session_id"`
-	TTSChatterboxURL    string `json:"tts_chatterbox_url"`
-	TTSChatterboxVoice  string `json:"tts_chatterbox_voice_ref"`
+	TTSProvider          string `json:"tts_provider"`            // "elevenlabs", "chatterbox", or "tiktok"
+	TTSElevenLabsAPIKey  string `json:"tts_elevenlabs_api_key"`
+	TTSTikTokSessionID   string `json:"tts_tiktok_session_id"`
+	TTSChatterboxURL     string `json:"tts_chatterbox_url"`
+	TTSChatterboxVoice   string `json:"tts_chatterbox_voice_ref"`
 
-	AssemblyAIKey string `json:"assembly_ai_api_key"`
+	BraveSearchAPIKey string `json:"brave_search_api_key"`
+	AssemblyAIKey     string `json:"assembly_ai_api_key"`
 	ImageMagick   string `json:"imagemagick_binary"`
 	OutputDir     string `json:"output_dir"`
 	TempDir       string `json:"temp_dir"`
@@ -53,7 +55,7 @@ func (s *State) Save(path string) error {
 
 func (s *State) applyDefaults() {
 	if s.TTSProvider == "" {
-		s.TTSProvider = "tiktok"
+		s.TTSProvider = "elevenlabs"
 	}
 	if s.TTSChatterboxURL == "" {
 		s.TTSChatterboxURL = "http://localhost:7860"
@@ -77,7 +79,9 @@ func (s *State) Redacted() State {
 	r := *s
 	r.InferenceAPIKey = redact(r.InferenceAPIKey)
 	r.PexelsAPIKey = redact(r.PexelsAPIKey)
+	r.TTSElevenLabsAPIKey = redact(r.TTSElevenLabsAPIKey)
 	r.TTSTikTokSessionID = redact(r.TTSTikTokSessionID)
+	r.BraveSearchAPIKey = redact(r.BraveSearchAPIKey)
 	r.AssemblyAIKey = redact(r.AssemblyAIKey)
 	return r
 }

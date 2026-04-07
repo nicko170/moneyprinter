@@ -1,0 +1,88 @@
+package templates
+
+import (
+	"github.com/moneyprinter/components/button"
+	"github.com/moneyprinter/components/card"
+	"github.com/moneyprinter/internal/draft"
+)
+
+type DraftsPageProps struct {
+	Drafts       []*draft.Draft
+	SeriesDrafts []*draft.SeriesDraft
+}
+
+templ DraftsPage(props DraftsPageProps) {
+	@Layout("Drafts") {
+		<div class="flex items-center justify-between mb-6">
+			<h1 class="text-2xl font-bold">Drafts</h1>
+			<div class="flex gap-2">
+				@button.Button(button.Props{Href: "/jobs/create"}) {
+					+ New Draft
+				}
+				@button.Button(button.Props{Href: "/series/create", Variant: button.VariantOutline}) {
+					+ New Series
+				}
+			</div>
+		</div>
+
+		if len(props.SeriesDrafts) > 0 {
+			<h2 class="text-lg font-semibold mb-3">Series Drafts</h2>
+			<div class="grid gap-3 mb-8">
+				for _, sd := range props.SeriesDrafts {
+					@card.Card(card.Props{Class: "hover:shadow-md transition-shadow"}) {
+						<a href={ templ.SafeURL("/series-drafts/" + sd.ID) } class="block p-4">
+							<div class="flex items-center justify-between gap-4 overflow-hidden">
+								<div class="min-w-0 flex-1">
+									<p class="font-medium truncate">{ sd.Theme }</p>
+									<p class="text-xs text-muted-foreground mt-1">
+										{ itoa(sd.EpisodeCount) } episodes · { sd.CreatedAt.Format("Jan 2 15:04") }
+									</p>
+								</div>
+								<div class="shrink-0">
+									@seriesDraftStatusBadge(sd.Status)
+								</div>
+							</div>
+						</a>
+					}
+				}
+			</div>
+		}
+
+		<h2 class="text-lg font-semibold mb-3">Video Drafts</h2>
+		if len(props.Drafts) == 0 {
+			@card.Card() {
+				@card.Content(card.ContentProps{Class: "py-12 text-center"}) {
+					<p class="text-muted-foreground">No drafts yet.</p>
+					<div class="mt-4">
+						@button.Button(button.Props{Href: "/jobs/create"}) {
+							Research &amp; Draft
+						}
+					</div>
+				}
+			}
+		} else {
+			<div class="grid gap-3">
+				for _, d := range props.Drafts {
+					@card.Card(card.Props{Class: "hover:shadow-md transition-shadow"}) {
+						<a href={ templ.SafeURL("/drafts/" + d.ID) } class="block p-4">
+							<div class="flex items-center justify-between gap-4 overflow-hidden">
+								<div class="min-w-0 flex-1">
+									<p class="font-medium truncate">{ d.Subject }</p>
+									<p class="text-xs text-muted-foreground mt-1">
+										{ d.CreatedAt.Format("Jan 2 15:04") }
+										if d.Status == draft.StatusDone && d.Script != "" {
+											· { wordCount(d.Script) } words
+										}
+									</p>
+								</div>
+								<div class="shrink-0">
+									@draftStatusBadge(d.Status)
+								</div>
+							</div>
+						</a>
+					}
+				}
+			</div>
+		}
+	}
+}

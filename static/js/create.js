@@ -1,9 +1,9 @@
-// Create Job page — form submission + redirect
+// Create Job page — form submission → research draft
 (function () {
   "use strict";
 
   document.addEventListener("DOMContentLoaded", () => {
-    const btn = document.getElementById("generateButton");
+    const btn = document.getElementById("researchButton");
     const subject = document.getElementById("videoSubject");
 
     btn.addEventListener("click", async () => {
@@ -14,7 +14,7 @@
       }
 
       btn.disabled = true;
-      btn.textContent = "Submitting…";
+      btn.textContent = "Starting research…";
 
       const payload = {
         videoSubject: text,
@@ -24,7 +24,6 @@
         color: document.getElementById("subtitlesColor").value,
         useMusic: document.getElementById("useMusicToggle").checked,
         customPrompt: document.getElementById("customPrompt").value,
-        context: document.getElementById("context").value,
         hookStyle: document.getElementById("hookStyle").value,
         customHook: document.getElementById("customHook").value,
         tonePreset: document.getElementById("tonePreset").value,
@@ -56,27 +55,27 @@
       }
 
       try {
-        const resp = await fetch("/api/generate", {
+        const resp = await fetch("/api/drafts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
         const data = await resp.json();
-        if (data.status === "success" && data.jobId) {
-          window.location.href = "/jobs/" + data.jobId;
+        if (data.status === "success" && data.draftId) {
+          window.location.href = "/drafts/" + data.draftId;
         } else {
-          showToast(data.message || "Failed to start generation.", "error");
+          showToast(data.message || "Failed to start research.", "error");
           btn.disabled = false;
-          btn.textContent = "Generate";
+          btn.textContent = "Research & Draft";
         }
       } catch (e) {
         showToast("Connection error. Is the server running?", "error");
         btn.disabled = false;
-        btn.textContent = "Generate";
+        btn.textContent = "Research & Draft";
       }
     });
 
-    // Enter in subject = generate
+    // Enter in subject = research
     subject.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();

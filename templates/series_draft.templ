@@ -1,0 +1,195 @@
+package templates
+
+import (
+	"fmt"
+	"github.com/moneyprinter/components/badge"
+	"github.com/moneyprinter/components/button"
+	"github.com/moneyprinter/components/card"
+	"github.com/moneyprinter/internal/draft"
+)
+
+templ SeriesDraftDetail(sd *draft.SeriesDraft) {
+	@Layout("Series Research — " + sd.Theme) {
+		<div class="flex items-center gap-3 mb-6">
+			<a href="/series/create" class="text-muted-foreground hover:text-foreground text-sm">← New Series</a>
+		</div>
+		<div class="flex items-center justify-between mb-6">
+			<div>
+				<h1 class="text-2xl font-bold">{ sd.Theme }</h1>
+				<p class="text-sm text-muted-foreground mt-1">
+					{ fmt.Sprintf("%d", sd.EpisodeCount) } episodes · { sd.CreatedAt.Format("Jan 2 15:04:05") }
+				</p>
+			</div>
+			<div id="seriesStatusBadge">
+				@seriesDraftStatusBadge(sd.Status)
+			</div>
+		</div>
+
+		<!-- Status / progress card -->
+		<div id="statusCard" class="mb-4">
+			if sd.Status == draft.SeriesDraftStatusPlanning {
+				@card.Card() {
+					@card.Content(card.ContentProps{Class: "pt-6"}) {
+						<div class="flex items-center gap-3 mb-4">
+							<div class="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
+							<span class="text-sm font-medium text-blue-600">Planning episode topics…</span>
+						</div>
+						<div class="h-1 w-full overflow-hidden rounded-full bg-muted">
+							<div class="h-full w-1/3 animate-indeterminate rounded-full bg-primary"></div>
+						</div>
+					}
+				}
+			}
+			if sd.Status == draft.SeriesDraftStatusResearching {
+				@card.Card(card.Props{Class: "mb-4"}) {
+					@card.Content(card.ContentProps{Class: "pt-6"}) {
+						<div class="flex items-center gap-3 mb-3">
+							<div class="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
+							<span class="text-sm font-medium text-blue-600">Researching episodes in parallel…</span>
+						</div>
+						<div id="progressBar" class="h-1 w-full overflow-hidden rounded-full bg-muted mb-4">
+							<div id="progressFill" class="h-full rounded-full bg-primary transition-all duration-500" style="width:0%"></div>
+						</div>
+						<p id="progressText" class="text-xs text-muted-foreground">0 / { fmt.Sprintf("%d", sd.EpisodeCount) } episodes done</p>
+					}
+				}
+				<!-- Episode cards (status updated by JS) -->
+				<div id="episodeList" class="grid gap-3">
+					for _, ep := range sd.Episodes {
+						<div id={ fmt.Sprintf("ep-%d", ep.Index) } class="rounded-lg border p-4 flex items-center justify-between">
+							<div>
+								<p class="text-xs text-muted-foreground mb-0.5">Episode { fmt.Sprintf("%d", ep.Index) }</p>
+								<p class="font-medium text-sm">{ ep.Subject }</p>
+							</div>
+							<div id={ fmt.Sprintf("ep-%d-badge", ep.Index) }>
+								@episodeStatusBadge(ep.Status)
+							</div>
+						</div>
+					}
+				</div>
+			}
+			if sd.Status == draft.SeriesDraftStatusReady {
+				@card.Card(card.Props{Class: "mb-4 border-green-200 dark:border-green-900"}) {
+					@card.Content(card.ContentProps{Class: "pt-6"}) {
+						<div class="flex items-center justify-between">
+							<div class="flex items-center gap-3">
+								<div class="h-2 w-2 rounded-full bg-green-500"></div>
+								<span class="text-sm font-medium text-green-600">
+									{ fmt.Sprintf("All %d episodes researched and ready", len(sd.Episodes)) }
+								</span>
+							</div>
+						</div>
+					}
+				}
+				<!-- Episode cards with full scripts -->
+				<div class="grid gap-4 mb-4">
+					for _, ep := range sd.Episodes {
+						@seriesEpisodeCard(ep)
+					}
+				</div>
+				<!-- Approve button -->
+				@button.Button(button.Props{ID: "approveButton", Type: "button", Class: "w-full"}) {
+					<svg class="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+						<path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"></path>
+					</svg>
+					Approve All & Generate Series
+				}
+			}
+			if sd.Status == draft.SeriesDraftStatusFailed {
+				@card.Card(card.Props{Class: "border-destructive"}) {
+					@card.Content(card.ContentProps{Class: "pt-6"}) {
+						<div class="flex items-center gap-3">
+							<div class="h-2 w-2 rounded-full bg-red-500"></div>
+							<span class="text-sm font-medium text-red-600">Research failed</span>
+						</div>
+						if sd.ErrorMessage != "" {
+							<p class="mt-2 text-sm text-muted-foreground">{ sd.ErrorMessage }</p>
+						}
+						<div class="mt-3">
+							@button.Button(button.Props{Href: "/series/create", Variant: button.VariantOutline, Size: button.SizeSm}) {
+								Try Again
+							}
+						</div>
+					}
+				}
+			}
+		</div>
+
+		<!-- Research log -->
+		<div class="rounded-lg border overflow-hidden mt-4">
+			<div class="flex items-center justify-between bg-zinc-900 px-4 py-2">
+				<span class="text-xs font-medium uppercase tracking-wider text-zinc-500">Research Log</span>
+				<button id="logClearBtn" type="button" class="text-zinc-500 hover:text-zinc-300 text-sm">&times;</button>
+			</div>
+			<div id="logViewerBody" class="bg-zinc-950 p-4 font-mono text-xs leading-relaxed max-h-80 overflow-y-auto"></div>
+		</div>
+
+		<script data-series-draft-id={ sd.ID } data-episode-count={ fmt.Sprintf("%d", sd.EpisodeCount) } src="/static/js/series_draft.js"></script>
+	}
+}
+
+templ seriesEpisodeCard(ep draft.EpisodeDraft) {
+	@card.Card() {
+		@card.Content(card.ContentProps{Class: "pt-6 space-y-3"}) {
+			<div class="flex items-center justify-between">
+				<div>
+					<p class="text-xs text-muted-foreground">Episode { fmt.Sprintf("%d", ep.Index) }</p>
+					<p class="font-semibold">{ ep.Subject }</p>
+				</div>
+				<div class="flex items-center gap-2">
+					if ep.Status == draft.EpisodeStatusFailed {
+						@badge.Badge(badge.Props{Variant: badge.VariantDestructive}) { Failed }
+					} else {
+						@badge.Badge(badge.Props{Variant: badge.VariantDefault, Class: "bg-green-500 hover:bg-green-500"}) { Ready }
+					}
+					<span class="text-xs text-muted-foreground">{ wordCount(ep.Script) } words</span>
+				</div>
+			</div>
+			if ep.Status == draft.EpisodeStatusFailed {
+				<p class="text-sm text-destructive">{ ep.Error }</p>
+			} else {
+				<p class="text-sm leading-relaxed whitespace-pre-wrap font-mono bg-muted/40 rounded-md p-3 border select-all">{ ep.Script }</p>
+				if len(ep.Sources) > 0 {
+					<div class="space-y-1 pt-1">
+						<p class="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sources</p>
+						for _, src := range ep.Sources {
+							<div>
+								if src.URL != "" {
+									<a href={ templ.SafeURL(src.URL) } target="_blank" rel="noopener" class="text-xs hover:underline text-primary">{ src.Title }</a>
+								} else {
+									<span class="text-xs text-muted-foreground">{ src.Title }</span>
+								}
+							</div>
+						}
+					</div>
+				}
+			}
+		}
+	}
+}
+
+templ seriesDraftStatusBadge(status draft.SeriesDraftStatus) {
+	switch status {
+	case draft.SeriesDraftStatusPlanning:
+		@badge.Badge(badge.Props{Variant: badge.VariantDefault}) { Planning }
+	case draft.SeriesDraftStatusResearching:
+		@badge.Badge(badge.Props{Variant: badge.VariantDefault}) { Researching }
+	case draft.SeriesDraftStatusReady:
+		@badge.Badge(badge.Props{Variant: badge.VariantDefault, Class: "bg-green-500 hover:bg-green-500"}) { Ready }
+	case draft.SeriesDraftStatusFailed:
+		@badge.Badge(badge.Props{Variant: badge.VariantDestructive}) { Failed }
+	}
+}
+
+templ episodeStatusBadge(status draft.EpisodeDraftStatus) {
+	switch status {
+	case draft.EpisodeStatusQueued:
+		@badge.Badge(badge.Props{Variant: badge.VariantOutline}) { Queued }
+	case draft.EpisodeStatusResearching:
+		@badge.Badge(badge.Props{Variant: badge.VariantDefault}) { Researching }
+	case draft.EpisodeStatusDone:
+		@badge.Badge(badge.Props{Variant: badge.VariantDefault, Class: "bg-green-500 hover:bg-green-500"}) { Done }
+	case draft.EpisodeStatusFailed:
+		@badge.Badge(badge.Props{Variant: badge.VariantDestructive}) { Failed }
+	}
+}

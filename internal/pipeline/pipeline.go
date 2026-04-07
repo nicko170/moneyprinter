@@ -33,6 +33,9 @@ type Params struct {
 	UseMusic      bool     `json:"useMusic"`
 	Force         bool     `json:"force"`
 
+	// ScriptOverride — when set by the draft approval flow, skip LLM generation.
+	ScriptOverride string `json:"scriptOverride,omitempty"`
+
 	// Naming context (set by worker for series episodes).
 	SeriesTheme  string `json:"seriesTheme,omitempty"`
 	EpisodeIndex int    `json:"episodeIndex,omitempty"` // 1-based
@@ -89,8 +92,8 @@ func Run(ctx context.Context, jobID string, params Params, cfg *state.State, onL
 
 	// Apply defaults.
 	if params.Voice == "" {
-		params.Voice = "en_us_001"
-		emit("No voice selected, defaulting to en_us_001", "warning")
+		params.Voice = "21m00Tcm4TlvDq8ikWAM" // Rachel
+		emit("No voice selected, defaulting to Rachel", "warning")
 	}
 	if params.ParagraphNum <= 0 {
 		params.ParagraphNum = 1
@@ -128,7 +131,11 @@ func Run(ctx context.Context, jobID string, params Params, cfg *state.State, onL
 
 	// --- Step 1: Generate script ---
 	var script string
-	if fileExists(scriptPath) {
+	if params.ScriptOverride != "" {
+		script = params.ScriptOverride
+		os.WriteFile(scriptPath, []byte(script), 0644)
+		emit("Using pre-approved research script", "info")
+	} else if fileExists(scriptPath) {
 		data, _ := os.ReadFile(scriptPath)
 		script = string(data)
 		emit("Script loaded from cache", "info")
@@ -436,8 +443,10 @@ func SelectTTSProvider(cfg *state.State) tts.Provider {
 			BaseURL:      cfg.TTSChatterboxURL,
 			VoiceRefPath: cfg.TTSChatterboxVoice,
 		}
-	default:
+	case "tiktok":
 		return &tts.TikTok{}
+	default:
+		return &tts.ElevenLabs{APIKey: cfg.TTSElevenLabsAPIKey}
 	}
 }
 
