@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -43,7 +44,7 @@ func NewClient(ctx context.Context, cfg OAuthConfig) (*Client, error) {
 		ClientID:     cfg.ClientID,
 		ClientSecret: cfg.ClientSecret,
 		Endpoint:     google.Endpoint,
-		Scopes:       []string{yt.YoutubeScope},
+		Scopes:       []string{yt.YoutubeScope, yt.YoutubeForceSslScope},
 	}
 
 	token := &oauth2.Token{RefreshToken: cfg.RefreshToken}
@@ -64,7 +65,7 @@ func AuthURL(clientID, clientSecret, redirectURL string) string {
 		ClientSecret: clientSecret,
 		Endpoint:     google.Endpoint,
 		RedirectURL:  redirectURL,
-		Scopes:       []string{yt.YoutubeScope},
+		Scopes:       []string{yt.YoutubeScope, yt.YoutubeForceSslScope},
 	}
 	return cfg.AuthCodeURL("state-token", oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "consent"))
 }
@@ -76,7 +77,7 @@ func ExchangeCode(ctx context.Context, clientID, clientSecret, redirectURL, code
 		ClientSecret: clientSecret,
 		Endpoint:     google.Endpoint,
 		RedirectURL:  redirectURL,
-		Scopes:       []string{yt.YoutubeScope},
+		Scopes:       []string{yt.YoutubeScope, yt.YoutubeForceSslScope},
 	}
 
 	token, err := cfg.Exchange(ctx, code)
@@ -183,6 +184,69 @@ func (c *Client) ListChannels(ctx context.Context) ([]Channel, error) {
 		})
 	}
 	return channels, nil
+}
+
+// Comment represents a YouTube comment thread.
+type Comment struct {
+	ID          string    `json:"id"`
+	VideoID     string    `json:"videoId"`
+	Author      string    `json:"author"`
+	AuthorURL   string    `json:"authorUrl,omitempty"`
+	Text        string    `json:"text"`
+	LikeCount   int64     `json:"likeCount"`
+	PublishedAt time.Time `json:"publishedAt"`
+	ReplyCount  int64     `json:"replyCount"`
+}
+
+// ListNewComments returns top-level comment threads for a video, newest first.
+func (c *Client) ListNewComments(ctx context.Context, videoID string, maxResults int64) ([]Comment, error) {
+	if maxResults <= 0 {
+		maxResults = 50
+	}
+	call := c.service.CommentThreads.List([]string{"snippet"}).
+		VideoId(videoID).
+		Order("time").
+		MaxResults(maxResults).
+		Context(ctx)
+
+	resp, err := call.Do()
+	if err != nil {
+		return nil, fmt.Errorf("listing comments: %w", err)
+	}
+
+	var comments []Comment
+	for _, item := range resp.Items {
+		s := item.Snippet.TopLevelComment.Snippet
+		published, _ := time.Parse(time.RFC3339, s.PublishedAt)
+		comments = append(comments, Comment{
+			ID:          item.Snippet.TopLevelComment.Id,
+			VideoID:     videoID,
+			Author:      s.AuthorDisplayName,
+			AuthorURL:   s.AuthorChannelUrl,
+			Text:        s.TextOriginal,
+			LikeCount:   s.LikeCount,
+			PublishedAt: published,
+			ReplyCount:  int64(item.Snippet.TotalReplyCount),
+		})
+	}
+	return comments, nil
+}
+
+// ReplyToComment posts a reply to a comment and returns the reply ID.
+func (c *Client) ReplyToComment(ctx context.Context, parentCommentID, text string) (string, error) {
+	comment := &yt.Comment{
+		Snippet: &yt.CommentSnippet{
+			ParentId:     parentCommentID,
+			TextOriginal: text,
+		},
+	}
+
+	call := c.service.Comments.Insert([]string{"snippet"}, comment).Context(ctx)
+	resp, err := call.Do()
+	if err != nil {
+		return "", fmt.Errorf("replying to comment: %w", err)
+	}
+	return resp.Id, nil
 }
 
 // VideoURL returns the YouTube Shorts URL for a video ID.

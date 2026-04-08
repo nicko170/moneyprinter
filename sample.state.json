@@ -22,6 +22,7 @@
   "youtube_refresh_token": "",
   "youtube_channel_id": "",
   "youtube_auto_publish": false,
+  "youtube_auto_reply": true,
   "imagegen_provider": "vllm",
   "imagegen_url": "http://localhost:8000",
   "imagegen_api_key": "",

@@ -30,6 +30,7 @@ type State struct {
 	YouTubeRefreshToken string `json:"youtube_refresh_token"`
 	YouTubeChannelID    string `json:"youtube_channel_id"`
 	YouTubeAutoPublish  bool   `json:"youtube_auto_publish"`
+	YouTubeAutoReply    bool   `json:"youtube_auto_reply"`
 
 	// Image generation
 	ImageGenProvider string `json:"imagegen_provider"` // "vllm", "replicate", or "openai"

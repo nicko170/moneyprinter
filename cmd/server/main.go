@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/moneyprinter/internal/agent"
+	"github.com/moneyprinter/internal/commentagent"
 	ytpkg "github.com/moneyprinter/internal/youtube"
 	"github.com/moneyprinter/internal/draft"
 	"github.com/moneyprinter/internal/imagegen"
@@ -60,6 +61,7 @@ func main() {
 	drafts := draft.NewStore("drafts.json")
 	seriesDrafts := draft.NewSeriesDraftStore("series_drafts.json")
 	models := model.NewStore("models.json")
+	commentStore := ytpkg.NewCommentStore("comments.json")
 
 	// Start worker pool.
 	for i := range workerCount {
@@ -69,6 +71,7 @@ func main() {
 	// Start schedulers.
 	go seriesScheduler(queue, series, cfg)
 	go modelScheduler(models, cfg)
+	go commentReplyScheduler(queue, commentStore, cfg)
 
 	mux := http.NewServeMux()
 
@@ -461,6 +464,28 @@ This must feel like a REAL person with quirks and specificity. Not a generic mod
 		cfg.YouTubeChannelID = req.ChannelID
 		log.Printf("YouTube channel set to %s", req.ChannelID)
 		writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
+	})
+
+	// --- Comment activity API ---
+	mux.HandleFunc("GET /api/youtube/comments", func(w http.ResponseWriter, r *http.Request) {
+		total, replied, skipped := commentStore.Stats()
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status":   "success",
+			"total":    total,
+			"replied":  replied,
+			"skipped":  skipped,
+			"activity": commentStore.RecentActivity(50),
+		})
+	})
+
+	mux.HandleFunc("POST /api/youtube/comments/check", func(w http.ResponseWriter, r *http.Request) {
+		go runCommentCheck(queue, commentStore, cfg)
+		writeJSON(w, http.StatusOK, map[string]string{"status": "success", "message": "Comment check triggered"})
+	})
+
+	// --- Comments page ---
+	mux.HandleFunc("GET /comments", func(w http.ResponseWriter, r *http.Request) {
+		templates.CommentsPage(commentStore.RecentActivity(100)).Render(r.Context(), w)
 	})
 
 	// --- Shorts API routes ---
@@ -1302,6 +1327,153 @@ func publishToYouTube(j *job.Job, params pipeline.Params, cfg *state.State, onLo
 	j.YouTubeURL = ytpkg.VideoURL(videoID)
 	onLog(fmt.Sprintf("Published to YouTube: %s", j.YouTubeURL), "success")
 	log.Printf("[%s] Published to YouTube: %s", j.ID[:8], j.YouTubeURL)
+}
+
+func commentReplyScheduler(queue *job.Queue, comments *ytpkg.CommentStore, cfg *state.State) {
+	// Run first check shortly after startup.
+	time.Sleep(10 * time.Second)
+	runCommentCheck(queue, comments, cfg)
+
+	for {
+		// Random interval: 1-3 hours between subsequent checks.
+		interval := time.Duration(60+rand.Intn(120)) * time.Minute
+		log.Printf("[comments] Next check in %v", interval.Round(time.Minute))
+		time.Sleep(interval)
+
+		runCommentCheck(queue, comments, cfg)
+	}
+}
+
+func runCommentCheck(queue *job.Queue, comments *ytpkg.CommentStore, cfg *state.State) {
+	current := loadState()
+	if current == nil {
+		current = cfg
+	}
+	if current.YouTubeRefreshToken == "" || !current.YouTubeAutoReply {
+		return
+	}
+
+	ytClient, err := ytpkg.NewClient(context.Background(), ytpkg.OAuthConfig{
+		ClientID:     current.YouTubeClientID,
+		ClientSecret: current.YouTubeClientSecret,
+		RefreshToken: current.YouTubeRefreshToken,
+	})
+	if err != nil {
+		log.Printf("[comments] YouTube auth failed: %v", err)
+		return
+	}
+
+	llm := inference.NewClient(current.InferenceURL, current.InferenceModel, current.InferenceAPIKey)
+
+	// Check all published videos.
+	for _, j := range queue.List() {
+		if j.YouTubeVideoID == "" || j.Status != job.StatusCompleted {
+			continue
+		}
+
+		newComments, err := ytClient.ListNewComments(context.Background(), j.YouTubeVideoID, 20)
+		if err != nil {
+			log.Printf("[comments] Failed to list comments for %s: %v", j.YouTubeVideoID, err)
+			continue
+		}
+
+		for _, c := range newComments {
+			if comments.IsProcessed(c.ID) {
+				continue
+			}
+
+			// Load script.
+			script := ""
+			scriptPath := filepath.Join(current.TempDir, j.ID, "script.txt")
+			if data, err := os.ReadFile(scriptPath); err == nil {
+				script = string(data)
+			}
+
+			// Load series context.
+			seriesTheme := ""
+			var params pipeline.Params
+			if err := json.Unmarshal(j.Payload, &params); err == nil {
+				seriesTheme = params.SeriesTheme
+			}
+
+			log.Printf("[comments] Replying to @%s on %s: %s", c.Author, j.YouTubeVideoID, truncate(c.Text, 50))
+
+			agentCfg := commentagent.Config{
+				LLM:           llm,
+				BraveAPIKey:   current.BraveSearchAPIKey,
+				VideoSubject:  j.Subject,
+				Script:        script,
+				SeriesTheme:   seriesTheme,
+				TonePreset:    params.TonePreset,
+				CommentAuthor: c.Author,
+				CommentText:   c.Text,
+			}
+
+			result, err := commentagent.Run(context.Background(), agentCfg, func(msg, level string) {
+				log.Printf("[comments] %s", msg)
+			})
+
+			if err != nil {
+				log.Printf("[comments] Reply generation failed: %v", err)
+				comments.RecordReply(ytpkg.CommentRecord{
+					CommentID: c.ID,
+					VideoID:   c.VideoID,
+					JobID:     j.ID,
+					Author:    c.Author,
+					Text:      c.Text,
+					Error:     err.Error(),
+				})
+				continue
+			}
+
+			if result.Skipped {
+				comments.RecordSkip(c.ID, c.VideoID, j.ID, c.Author, c.Text)
+				log.Printf("[comments] Skipped @%s (spam/irrelevant)", c.Author)
+				continue
+			}
+
+			// Post the reply to YouTube.
+			replyID, err := ytClient.ReplyToComment(context.Background(), c.ID, result.ReplyText)
+			if err != nil {
+				log.Printf("[comments] Failed to post reply: %v", err)
+				comments.RecordReply(ytpkg.CommentRecord{
+					CommentID: c.ID,
+					VideoID:   c.VideoID,
+					JobID:     j.ID,
+					Author:    c.Author,
+					Text:      c.Text,
+					ReplyText: result.ReplyText,
+					Error:     fmt.Sprintf("post failed: %v", err),
+				})
+				continue
+			}
+
+			comments.RecordReply(ytpkg.CommentRecord{
+				CommentID:   c.ID,
+				VideoID:     c.VideoID,
+				JobID:       j.ID,
+				Author:      c.Author,
+				Text:        c.Text,
+				ReplyText:   result.ReplyText,
+				ReplyID:     replyID,
+				RepliedAt:   time.Now(),
+				PublishedAt: c.PublishedAt,
+			})
+
+			log.Printf("[comments] Replied to @%s: %s", c.Author, truncate(result.ReplyText, 80))
+
+			// Random delay between replies: 30s-5min.
+			delay := time.Duration(30+rand.Intn(270)) * time.Second
+			time.Sleep(delay)
+		}
+	}
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }
 
 func selectImageGenProvider(cfg *state.State) imagegen.Provider {

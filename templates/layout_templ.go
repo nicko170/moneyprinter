@@ -42,7 +42,7 @@ func Layout(title string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " — MoneyPrinter</title><link rel=\"stylesheet\" href=\"/static/css/tailwind.css\"></head><body class=\"min-h-screen bg-background text-foreground\"><!-- Navigation --><nav class=\"border-b border-border\"><div class=\"mx-auto max-w-5xl px-4 flex items-center gap-6 h-14\"><a href=\"/\" class=\"font-bold tracking-tight\">MoneyPrinter</a><div class=\"flex items-center gap-4 text-sm\"><a href=\"/shorts\" class=\"text-muted-foreground hover:text-foreground transition-colors\">Shorts</a> <a href=\"/models\" class=\"text-muted-foreground hover:text-foreground transition-colors\">Models</a></div></div></nav><div class=\"mx-auto max-w-5xl px-4 py-8\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " — MoneyPrinter</title><link rel=\"stylesheet\" href=\"/static/css/tailwind.css\"></head><body class=\"min-h-screen bg-background text-foreground\"><!-- Navigation --><nav class=\"border-b border-border\"><div class=\"mx-auto max-w-5xl px-4 flex items-center gap-6 h-14\"><a href=\"/\" class=\"font-bold tracking-tight\">MoneyPrinter</a><div class=\"flex items-center gap-4 text-sm\"><a href=\"/shorts\" class=\"text-muted-foreground hover:text-foreground transition-colors\">Shorts</a> <a href=\"/models\" class=\"text-muted-foreground hover:text-foreground transition-colors\">Models</a> <a href=\"/comments\" class=\"text-muted-foreground hover:text-foreground transition-colors\">Comments</a></div></div></nav><div class=\"mx-auto max-w-5xl px-4 py-8\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

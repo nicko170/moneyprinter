@@ -1,0 +1,79 @@
+package templates
+
+import (
+	"github.com/moneyprinter/components/badge"
+	"github.com/moneyprinter/components/button"
+	ytpkg "github.com/moneyprinter/internal/youtube"
+)
+
+templ CommentsPage(activity []*ytpkg.CommentRecord) {
+	@Layout("Comments") {
+		<div class="flex items-center justify-between mb-8">
+			<div>
+				<h1 class="text-2xl font-bold tracking-tight">Comment Activity</h1>
+				<p class="text-xs text-muted-foreground mt-1">Automated YouTube comment replies</p>
+			</div>
+			@button.Button(button.Props{ID: "checkNowBtn", Type: "button", Variant: button.VariantOutline}) {
+				Check Now
+			}
+		</div>
+
+		if len(activity) == 0 {
+			<div class="rounded-lg border border-dashed border-border py-16 text-center">
+				<p class="text-sm text-muted-foreground">No comment activity yet. Replies will appear here as videos get comments.</p>
+			</div>
+		} else {
+			<div class="grid gap-3">
+				for _, r := range activity {
+					<div class="rounded-lg border border-border/60 bg-card p-4">
+						<div class="flex items-start gap-3">
+							<div class="min-w-0 flex-1">
+								<div class="flex items-center gap-2 mb-1">
+									<span class="text-sm font-medium">{ "@" + r.Author }</span>
+									if r.Skipped {
+										@badge.Badge(badge.Props{Variant: badge.VariantSecondary}) {
+											Skipped
+										}
+									} else if r.Error != "" {
+										@badge.Badge(badge.Props{Variant: badge.VariantDestructive}) {
+											Error
+										}
+									} else if r.ReplyID != "" {
+										@badge.Badge(badge.Props{Class: "bg-green-100 text-green-800 border-green-200"}) {
+											Replied
+										}
+									}
+									<span class="text-xs text-muted-foreground">{ r.ProcessedAt.Format("Jan 2 15:04") }</span>
+								</div>
+								<p class="text-sm text-muted-foreground">{ r.Text }</p>
+								if r.ReplyText != "" {
+									<div class="mt-2 pl-3 border-l-2 border-primary/30">
+										<p class="text-sm">{ r.ReplyText }</p>
+									</div>
+								}
+								if r.Error != "" {
+									<p class="text-xs text-red-500 mt-1">{ r.Error }</p>
+								}
+							</div>
+						</div>
+					</div>
+				}
+			</div>
+		}
+
+		<script>
+			document.getElementById("checkNowBtn")?.addEventListener("click", async function() {
+				this.disabled = true;
+				this.textContent = "Checking...";
+				try {
+					await fetch("/api/youtube/comments/check", { method: "POST" });
+					showToast("Comment check started", "success");
+				} catch(e) {
+					showToast("Failed", "error");
+				}
+				this.disabled = false;
+				this.textContent = "Check Now";
+			});
+		</script>
+	}
+}
