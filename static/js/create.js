@@ -6,6 +6,26 @@
     const btn = document.getElementById("researchButton");
     const subject = document.getElementById("videoSubject");
 
+    // Load YouTube channels if the picker exists.
+    const ytSelect = document.getElementById("ytChannel");
+    if (ytSelect) {
+      fetch("/api/youtube/channels")
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.status === "success" && data.channels) {
+            ytSelect.innerHTML = "";
+            for (const ch of data.channels) {
+              const opt = document.createElement("option");
+              opt.value = ch.id;
+              opt.textContent = ch.title;
+              if (ch.id === data.selectedChannelId) opt.selected = true;
+              ytSelect.appendChild(opt);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+
     btn.addEventListener("click", async () => {
       const text = subject.value.trim();
       const isSeries = document.getElementById("seriesToggle").checked;
@@ -32,6 +52,8 @@
           ...(document.getElementById("effectSlowmo").checked ? ["slowmo"] : []),
           ...(document.getElementById("effectKenburns").checked ? ["kenburns"] : []),
         ],
+        autoPublishYT: document.getElementById("autoPublishYT")?.checked || false,
+        youtubeChannelId: document.getElementById("ytChannel")?.value || "",
         ...(document.getElementById("enableEndCard").checked ? {
           endCardBgColor: document.getElementById("endCardBgColor").value,
           endCardCTAText: document.getElementById("endCardCTAText").value,

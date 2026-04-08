@@ -36,6 +36,8 @@ type Job struct {
 	Status          Status          `json:"status"`
 	CancelRequested bool            `json:"cancelRequested"`
 	ResultPath      string          `json:"resultPath,omitempty"`
+	YouTubeVideoID  string          `json:"youtubeVideoId,omitempty"`
+	YouTubeURL      string          `json:"youtubeUrl,omitempty"`
 	ErrorMessage    string          `json:"errorMessage,omitempty"`
 	CreatedAt       time.Time       `json:"createdAt"`
 	StartedAt       time.Time       `json:"startedAt,omitempty"`

@@ -13,9 +13,10 @@ import (
 )
 
 type CreateJobProps struct {
-	InferenceURL   string
-	InferenceModel string
-	TTSProvider    string
+	InferenceURL     string
+	InferenceModel   string
+	TTSProvider      string
+	YouTubeConnected bool
 }
 
 templ CreateJob(props CreateJobProps) {
@@ -194,7 +195,31 @@ templ CreateJob(props CreateJobProps) {
 										Background Music
 									}
 								</div>
+							if props.YouTubeConnected {
+									<div class="flex items-center gap-2">
+										@switchcomp.Switch(switchcomp.Props{
+											ID:   "autoPublishYT",
+											Name: "autoPublishYT",
+											Attributes: templ.Attributes{"onchange": "document.getElementById('ytChannelField').classList.toggle('hidden', !this.checked)"},
+										})
+										@label.Label(label.Props{For: "autoPublishYT", Class: "text-sm font-normal cursor-pointer"}) {
+											Auto-publish to YouTube
+										}
+									</div>
+								}
 							</div>
+							if props.YouTubeConnected {
+								<div id="ytChannelField" class="hidden mt-3">
+									<div class="space-y-2">
+										@label.Label(label.Props{For: "ytChannel"}) {
+											YouTube Channel
+										}
+										<select id="ytChannel" name="ytChannel" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+											<option value="">Loading channels...</option>
+										</select>
+									</div>
+								</div>
+							}
 							@separator.Separator(separator.Props{Class: "my-4"})
 							<!-- End Card Toggle -->
 							<div class="flex items-center gap-2">

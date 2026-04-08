@@ -1,0 +1,131 @@
+package templates
+
+import (
+	"github.com/moneyprinter/components/button"
+	"github.com/moneyprinter/components/card"
+	"github.com/moneyprinter/components/input"
+	"github.com/moneyprinter/components/label"
+	"github.com/moneyprinter/components/separator"
+	"github.com/moneyprinter/components/textarea"
+)
+
+templ ModelCreate() {
+	@Layout("Create Model") {
+		<h1 class="text-2xl font-bold mb-2">Create Model</h1>
+		<p class="text-xs text-muted-foreground mb-6">Define an AI Instagram personality</p>
+
+		@card.Card() {
+			@card.Content(card.ContentProps{Class: "pt-6"}) {
+				<form id="modelForm" onsubmit="return false;">
+					<div class="grid grid-cols-2 gap-4">
+						<div class="space-y-2">
+							@label.Label(label.Props{For: "modelName"}) {
+								Display Name
+							}
+							@input.Input(input.Props{
+								ID:          "modelName",
+								Name:        "modelName",
+								Placeholder: "e.g. Luna Vasquez",
+							})
+						</div>
+						<div class="space-y-2">
+							@label.Label(label.Props{For: "handle"}) {
+								Handle
+							}
+							<div class="flex items-center gap-1">
+								<span class="text-sm text-muted-foreground">&commat;</span>
+								@input.Input(input.Props{
+									ID:          "handle",
+									Name:        "handle",
+									Placeholder: "luna.vasquez",
+								})
+							</div>
+						</div>
+					</div>
+
+					<div class="space-y-2 mt-4">
+						@label.Label(label.Props{For: "bio"}) {
+							Instagram Bio
+						}
+						@input.Input(input.Props{
+							ID:          "bio",
+							Name:        "bio",
+							Placeholder: "Travel addict. Coffee lover. Living my best life.",
+						})
+					</div>
+
+					<div class="space-y-2 mt-4">
+						@label.Label(label.Props{For: "description"}) {
+							Appearance Description
+						}
+						@textarea.Textarea(textarea.Props{
+							ID:          "description",
+							Name:        "description",
+							Placeholder: "Detailed physical description for image generation: age, ethnicity, hair color/style, eye color, body type, distinguishing features...",
+							Rows:        4,
+							AutoResize:  true,
+						})
+						<p class="text-xs text-muted-foreground">This is used in every image prompt to keep the character consistent.</p>
+					</div>
+
+					<div class="space-y-2 mt-4">
+						@label.Label(label.Props{For: "personality"}) {
+							Personality
+						}
+						@textarea.Textarea(textarea.Props{
+							ID:          "personality",
+							Name:        "personality",
+							Placeholder: "How they write captions: tone, vocabulary, emoji use, interests, quirks...",
+							Rows:        3,
+							AutoResize:  true,
+						})
+					</div>
+
+					<div class="grid grid-cols-2 gap-4 mt-4">
+						<div class="space-y-2">
+							@label.Label(label.Props{For: "style"}) {
+								Photography Style
+							}
+							<select id="style" name="style" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+								<option value="candid" selected>Candid / Natural</option>
+								<option value="editorial">Editorial / Magazine</option>
+								<option value="lifestyle">Lifestyle</option>
+								<option value="fashion">Fashion / Glamour</option>
+								<option value="fitness">Fitness / Athletic</option>
+								<option value="street">Street Style</option>
+								<option value="portrait">Portrait / Studio</option>
+							</select>
+						</div>
+						<div class="space-y-2">
+							@label.Label(label.Props{For: "schedule"}) {
+								Post Schedule
+							}
+							<select id="schedule" name="schedule" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+								<option value="6h">Every 6 hours</option>
+								<option value="12h">Every 12 hours</option>
+								<option value="24h" selected>Daily</option>
+								<option value="48h">Every 2 days</option>
+							</select>
+						</div>
+					</div>
+
+					@separator.Separator(separator.Props{Class: "my-6"})
+
+					<div class="flex gap-3">
+						@button.Button(button.Props{ID: "createModelBtn", Type: "button", Class: "flex-1"}) {
+							Create Model
+						}
+						@button.Button(button.Props{ID: "randomiseBtn", Type: "button", Variant: button.VariantOutline, Class: "shrink-0"}) {
+							<svg class="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H4.598a.75.75 0 00-.75.75v3.634a.75.75 0 001.5 0v-2.033l.312.311a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm-11.23-3.15a.75.75 0 00.713.988H8.33a.75.75 0 000-1.5H5.897l.312-.311a5.5 5.5 0 019.201-2.466.75.75 0 101.449-.39A7 7 0 005.147 7.903l-.312.311V6.18a.75.75 0 00-1.5 0v3.634a.75.75 0 00.037.262z" clip-rule="evenodd"></path></svg>
+							Randomise
+						}
+					</div>
+					<p class="text-xs text-muted-foreground text-center mt-2">
+						Reference images will be generated after creation.
+					</p>
+				</form>
+			}
+		}
+		<script src="/static/js/model_create.js"></script>
+	}
+}

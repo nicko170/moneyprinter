@@ -1,8 +1,12 @@
 .claude
-/temp
-/output
 state.json
 jobs.json
 series.json
+drafts.json
+series_drafts.json
+models.json
+/data
+/temp
+/output
 /node_modules
 .DS_Store

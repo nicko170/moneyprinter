@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -16,9 +17,13 @@ import (
 	"time"
 
 	"github.com/moneyprinter/internal/agent"
+	ytpkg "github.com/moneyprinter/internal/youtube"
 	"github.com/moneyprinter/internal/draft"
+	"github.com/moneyprinter/internal/imagegen"
 	"github.com/moneyprinter/internal/inference"
 	"github.com/moneyprinter/internal/job"
+	"github.com/moneyprinter/internal/model"
+	"github.com/moneyprinter/internal/modelagent"
 	"github.com/moneyprinter/internal/pipeline"
 	"github.com/moneyprinter/internal/state"
 	"github.com/moneyprinter/templates"
@@ -54,20 +59,23 @@ func main() {
 	series := job.NewSeriesStore("series.json")
 	drafts := draft.NewStore("drafts.json")
 	seriesDrafts := draft.NewSeriesDraftStore("series_drafts.json")
+	models := model.NewStore("models.json")
 
 	// Start worker pool.
 	for i := range workerCount {
 		go worker(i, queue, series, cfg)
 	}
 
-	// Start series scheduler.
+	// Start schedulers.
 	go seriesScheduler(queue, series, cfg)
+	go modelScheduler(models, cfg)
 
 	mux := http.NewServeMux()
 
 	// --- Static files ---
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 	mux.Handle("GET /output/", http.StripPrefix("/output/", http.FileServer(http.Dir(cfg.OutputDir))))
+	mux.Handle("GET /model-images/", http.StripPrefix("/model-images/", http.FileServer(http.Dir("data/models"))))
 
 	// --- Page routes ---
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
@@ -89,9 +97,10 @@ func main() {
 			current = cfg
 		}
 		templates.CreateJob(templates.CreateJobProps{
-			InferenceURL:   current.InferenceURL,
-			InferenceModel: current.InferenceModel,
-			TTSProvider:    current.TTSProvider,
+			InferenceURL:     current.InferenceURL,
+			InferenceModel:   current.InferenceModel,
+			TTSProvider:      current.TTSProvider,
+			YouTubeConnected: current.YouTubeRefreshToken != "",
 		}).Render(r.Context(), w)
 	})
 
@@ -133,7 +142,328 @@ func main() {
 	})
 
 
-	// --- API routes ---
+	// --- Model page routes ---
+	mux.HandleFunc("GET /models", func(w http.ResponseWriter, r *http.Request) {
+		templates.ModelsDashboard(models.List()).Render(r.Context(), w)
+	})
+
+	mux.HandleFunc("GET /models/create", func(w http.ResponseWriter, r *http.Request) {
+		templates.ModelCreate().Render(r.Context(), w)
+	})
+
+	mux.HandleFunc("GET /models/{id}", func(w http.ResponseWriter, r *http.Request) {
+		m := models.Get(r.PathValue("id"))
+		if m == nil {
+			http.NotFound(w, r)
+			return
+		}
+		templates.ModelDetail(m).Render(r.Context(), w)
+	})
+
+	// --- Model API routes ---
+	mux.HandleFunc("POST /api/models", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Name        string `json:"name"`
+			Handle      string `json:"handle"`
+			Bio         string `json:"bio"`
+			Description string `json:"description"`
+			Personality string `json:"personality"`
+			Style       string `json:"style"`
+			Schedule    string `json:"schedule"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" || req.Description == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"status": "error", "message": "name and description required"})
+			return
+		}
+		if req.Schedule == "" {
+			req.Schedule = "24h"
+		}
+		m := models.Create(req.Name, req.Handle, req.Bio, req.Description, req.Personality, req.Style, req.Schedule)
+		log.Printf("Created model %s: %q", m.ID[:8], m.Name)
+		writeJSON(w, http.StatusOK, map[string]string{"status": "success", "modelId": m.ID})
+	})
+
+	mux.HandleFunc("GET /api/models", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"status": "success", "models": models.List()})
+	})
+
+	mux.HandleFunc("GET /api/models/{id}", func(w http.ResponseWriter, r *http.Request) {
+		m := models.Get(r.PathValue("id"))
+		if m == nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Model not found"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"status": "success", "model": m})
+	})
+
+	mux.HandleFunc("GET /api/models/{id}/events", func(w http.ResponseWriter, r *http.Request) {
+		m := models.Get(r.PathValue("id"))
+		if m == nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Model not found"})
+			return
+		}
+		afterID := 0
+		if v := r.URL.Query().Get("after"); v != "" {
+			afterID, _ = strconv.Atoi(v)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"status": "success", "events": m.GetEvents(afterID)})
+	})
+
+	mux.HandleFunc("POST /api/models/{id}/pause", func(w http.ResponseWriter, r *http.Request) {
+		m := models.Get(r.PathValue("id"))
+		if m == nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Model not found"})
+			return
+		}
+		m.Status = model.ModelStatusPaused
+		m.AppendLog("Model paused", "warning")
+		models.PersistNow()
+		writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
+	})
+
+	mux.HandleFunc("POST /api/models/{id}/resume", func(w http.ResponseWriter, r *http.Request) {
+		m := models.Get(r.PathValue("id"))
+		if m == nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Model not found"})
+			return
+		}
+		m.Status = model.ModelStatusActive
+		m.NextRunAt = time.Now()
+		if m.NextPlannedPost() == nil {
+			m.AddPlannedPosts(1)
+		}
+		m.AppendLog("Model resumed", "info")
+		models.PersistNow()
+		writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
+	})
+
+	mux.HandleFunc("POST /api/models/{id}/trigger", func(w http.ResponseWriter, r *http.Request) {
+		m := models.Get(r.PathValue("id"))
+		if m == nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Model not found"})
+			return
+		}
+		if m.NextPlannedPost() == nil {
+			m.AddPlannedPosts(1)
+		}
+		m.NextRunAt = time.Now()
+		m.Status = model.ModelStatusActive
+		m.AppendLog("Post manually triggered", "info")
+		models.PersistNow()
+		writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
+	})
+
+	mux.HandleFunc("POST /api/models/{id}/generate-refs", func(w http.ResponseWriter, r *http.Request) {
+		m := models.Get(r.PathValue("id"))
+		if m == nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Model not found"})
+			return
+		}
+
+		current := loadState()
+		if current == nil {
+			current = cfg
+		}
+		provider := selectImageGenProvider(current)
+
+		go func() {
+			m.AppendLog("Generating reference images...", "info")
+			models.PersistNow()
+
+			refDir := filepath.Join("data", "models", m.ID, "refs")
+			os.MkdirAll(refDir, 0755)
+
+			prompt := fmt.Sprintf("Professional portrait photo of %s. %s photography, studio lighting, high quality, 4k, detailed face, looking at camera.",
+				m.Description, m.Style)
+
+			result, err := provider.Generate(context.Background(), imagegen.Request{
+				Prompt: prompt,
+				Width:  1080,
+				Height: 1350,
+				Count:  3,
+			}, refDir)
+			if err != nil {
+				m.AppendLog(fmt.Sprintf("Reference generation failed: %v", err), "error")
+				models.PersistNow()
+				return
+			}
+
+			m.RefImages = result.ImagePaths
+			m.Status = model.ModelStatusActive
+			m.NextRunAt = time.Now()
+			m.AddPlannedPosts(1)
+			m.AppendLog(fmt.Sprintf("Generated %d reference images — model activated", len(result.ImagePaths)), "success")
+			models.PersistNow()
+
+			log.Printf("[model:%s] Reference images generated, model active", m.ID[:8])
+		}()
+
+		writeJSON(w, http.StatusOK, map[string]string{"status": "success", "message": "Generating reference images..."})
+	})
+
+	mux.HandleFunc("POST /api/models/randomise", func(w http.ResponseWriter, r *http.Request) {
+		current := loadState()
+		if current == nil {
+			current = cfg
+		}
+		llm := inference.NewClient(current.InferenceURL, current.InferenceModel, current.InferenceAPIKey)
+
+		// Build context of existing models so the AI avoids duplicates.
+		var existingDesc string
+		for _, m := range models.List() {
+			existingDesc += fmt.Sprintf("- %s (@%s): %s\n", m.Name, m.Handle, m.Description)
+		}
+
+		// Random seed elements to force diversity.
+		regions := []string{"East Asian", "South Asian", "Southeast Asian", "Middle Eastern", "North African", "West African", "East African", "Caribbean", "Latin American", "Southern European", "Northern European", "Eastern European", "Scandinavian", "Pacific Islander", "Indigenous Australian", "Korean", "Japanese", "Filipino", "Brazilian", "Nigerian", "Ethiopian", "Moroccan", "Turkish", "Persian", "Colombian", "Mexican", "Argentinian", "Irish", "Italian", "Greek", "Polish", "Russian", "Swedish", "French"}
+		ages := []string{"early 20s", "mid 20s", "late 20s", "early 30s", "mid 30s", "late 30s", "early 40s"}
+		niches := []string{"rock climbing and outdoor adventure", "vintage fashion and thrift finds", "street food and hidden restaurants", "digital art and creative coding", "yoga and mindfulness", "tattoo culture and body art", "motorcycle touring", "sustainable living and zero waste", "urban photography", "competitive gaming", "plant parenthood and indoor gardens", "vinyl records and music production", "surfing and beach culture", "book reviews and cozy aesthetics", "boxing and martial arts", "pottery and ceramics", "van life and road trips", "architecture and brutalist buildings", "craft cocktails and mixology", "trail running and ultramarathons", "vintage cars and restoration", "baking sourdough and pastry art", "birdwatching and nature", "standup comedy and open mics", "figure skating", "graffiti and street art", "chess and board games", "scuba diving and marine life", "film photography on 35mm", "woodworking and furniture making"}
+		vibes := []string{"chaotic and unfiltered", "moody and introspective", "warm and wholesome", "sharp and sarcastic", "bubbly and energetic", "mysterious and minimalist", "goofy and self-deprecating", "poetic and dreamy", "bold and confrontational", "chill and laid-back", "nerdy and enthusiastic", "glamorous and unapologetic", "dry humor and deadpan", "earnest and vulnerable"}
+		genders := []string{"woman", "man", "non-binary person"}
+
+		region := regions[rand.Intn(len(regions))]
+		age := ages[rand.Intn(len(ages))]
+		niche := niches[rand.Intn(len(niches))]
+		vibe := vibes[rand.Intn(len(vibes))]
+		gender := genders[rand.Intn(len(genders))]
+
+		prompt := fmt.Sprintf(`Create an Instagram model profile for a %s %s %s in their %s who is into %s. Their vibe is %s.
+
+Return ONLY valid JSON:
+{
+  "name": "full display name (culturally appropriate for their background)",
+  "handle": "instagram.handle (creative, not just their name)",
+  "bio": "Instagram bio under 150 chars — in their voice, reflects their niche",
+  "description": "detailed physical appearance for image generation: specific hair color/style/length, eye color/shape, skin tone, body type, facial features, any distinctive features like piercings/tattoos/freckles/dimples. Be extremely specific — this drives visual consistency.",
+  "personality": "how they write captions: specific tone, slang they use, emoji habits, topics they rant about, their weird opinions. Make it feel like a real person, not a brand.",
+  "style": "one of: candid, editorial, lifestyle, fashion, fitness, street, portrait"
+}
+
+This must feel like a REAL person with quirks and specificity. Not a generic model. Their appearance, personality, and niche should all be coherent.`, gender, region, gender, age, niche, vibe)
+
+		if existingDesc != "" {
+			prompt += "\n\nDo NOT create anyone similar to these existing models:\n" + existingDesc
+		}
+
+		response, err := llm.Generate(r.Context(), prompt)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"status": "error", "message": fmt.Sprintf("LLM error: %v", err)})
+			return
+		}
+
+		// Extract JSON from response.
+		var result map[string]string
+		if err := json.Unmarshal([]byte(response), &result); err != nil {
+			start := strings.Index(response, "{")
+			end := strings.LastIndex(response, "}")
+			if start >= 0 && end > start {
+				json.Unmarshal([]byte(response[start:end+1]), &result)
+			}
+		}
+		if result == nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"status": "error", "message": "Failed to parse model profile"})
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{"status": "success", "model": result})
+	})
+
+	// --- YouTube OAuth ---
+	mux.HandleFunc("GET /api/youtube/auth", func(w http.ResponseWriter, r *http.Request) {
+		current := loadState()
+		if current == nil {
+			current = cfg
+		}
+		if current.YouTubeClientID == "" || current.YouTubeClientSecret == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"status": "error", "message": "Set youtube_client_id and youtube_client_secret in state.json first"})
+			return
+		}
+		redirectURL := "http://" + r.Host + "/api/youtube/callback"
+		url := ytpkg.AuthURL(current.YouTubeClientID, current.YouTubeClientSecret, redirectURL)
+		http.Redirect(w, r, url, http.StatusFound)
+	})
+
+	mux.HandleFunc("GET /api/youtube/callback", func(w http.ResponseWriter, r *http.Request) {
+		code := r.URL.Query().Get("code")
+		if code == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"status": "error", "message": "No authorization code"})
+			return
+		}
+		current := loadState()
+		if current == nil {
+			current = cfg
+		}
+		redirectURL := "http://" + r.Host + "/api/youtube/callback"
+		refreshToken, err := ytpkg.ExchangeCode(r.Context(), current.YouTubeClientID, current.YouTubeClientSecret, redirectURL, code)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"status": "error", "message": fmt.Sprintf("Token exchange failed: %v", err)})
+			return
+		}
+		// Save refresh token to state.
+		current.YouTubeRefreshToken = refreshToken
+		if err := current.Save(statePath); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"status": "error", "message": fmt.Sprintf("Failed to save token: %v", err)})
+			return
+		}
+		cfg.YouTubeRefreshToken = refreshToken
+		log.Printf("YouTube OAuth complete — refresh token saved")
+		// Redirect back to shorts page with success.
+		http.Redirect(w, r, "/shorts?youtube=connected", http.StatusFound)
+	})
+
+	mux.HandleFunc("GET /api/youtube/channels", func(w http.ResponseWriter, r *http.Request) {
+		current := loadState()
+		if current == nil {
+			current = cfg
+		}
+		if current.YouTubeRefreshToken == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"status": "error", "message": "YouTube not connected"})
+			return
+		}
+		ytClient, err := ytpkg.NewClient(r.Context(), ytpkg.OAuthConfig{
+			ClientID:     current.YouTubeClientID,
+			ClientSecret: current.YouTubeClientSecret,
+			RefreshToken: current.YouTubeRefreshToken,
+		})
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"status": "error", "message": fmt.Sprintf("YouTube auth: %v", err)})
+			return
+		}
+		channels, err := ytClient.ListChannels(r.Context())
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"status": "error", "message": fmt.Sprintf("Listing channels: %v", err)})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status":            "success",
+			"channels":          channels,
+			"selectedChannelId": current.YouTubeChannelID,
+		})
+	})
+
+	mux.HandleFunc("POST /api/youtube/channel", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ChannelID string `json:"channelId"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ChannelID == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"status": "error", "message": "channelId required"})
+			return
+		}
+		current := loadState()
+		if current == nil {
+			current = cfg
+		}
+		current.YouTubeChannelID = req.ChannelID
+		if err := current.Save(statePath); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"status": "error", "message": fmt.Sprintf("Failed to save: %v", err)})
+			return
+		}
+		cfg.YouTubeChannelID = req.ChannelID
+		log.Printf("YouTube channel set to %s", req.ChannelID)
+		writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
+	})
+
+	// --- Shorts API routes ---
 	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, cfg.Redacted())
 	})
@@ -748,6 +1078,12 @@ func worker(id int, queue *job.Queue, series *job.SeriesStore, cfg *state.State)
 		} else {
 			j.Complete(result)
 			log.Printf("[worker-%d] Job %s completed: %s", id, j.ID, result)
+
+			// Auto-publish to YouTube if enabled.
+			if params.AutoPublishYT || cfg.YouTubeAutoPublish {
+				publishToYouTube(j, params, cfg, onLog)
+				queue.PersistNow()
+			}
 		}
 		queue.PersistNow()
 
@@ -909,6 +1245,182 @@ func processEpisode(ser *job.Series, epIndex int, queue *job.Queue, seriesStore 
 	seriesStore.PersistNow()
 
 	log.Printf("[series:%s] Episode %d researched: %q → job %s", ser.ID[:8], epIndex, result.Subject, jobID[:8])
+}
+
+func publishToYouTube(j *job.Job, params pipeline.Params, cfg *state.State, onLog pipeline.LogFunc) {
+	current := loadState()
+	if current == nil {
+		current = cfg
+	}
+	if current.YouTubeRefreshToken == "" {
+		onLog("YouTube publish skipped — not authorized", "warning")
+		return
+	}
+
+	onLog("Publishing to YouTube...", "info")
+
+	ytClient, err := ytpkg.NewClient(context.Background(), ytpkg.OAuthConfig{
+		ClientID:     current.YouTubeClientID,
+		ClientSecret: current.YouTubeClientSecret,
+		RefreshToken: current.YouTubeRefreshToken,
+	})
+	if err != nil {
+		onLog(fmt.Sprintf("YouTube auth failed: %v", err), "error")
+		return
+	}
+
+	// Load metadata.
+	meta := ytpkg.Metadata{
+		Title:   j.Subject,
+		Privacy: "public",
+	}
+	metaPath := filepath.Join(current.TempDir, j.ID, "metadata.json")
+	if data, err := os.ReadFile(metaPath); err == nil {
+		var vm pipeline.VideoMetadata
+		if json.Unmarshal(data, &vm) == nil {
+			if vm.Title != "" {
+				meta.Title = vm.Title
+			}
+			meta.Description = vm.Description
+			meta.Tags = vm.Hashtags
+		}
+	}
+	// Per-job channel override, fall back to global config.
+	if params.YouTubeChannelID != "" {
+		meta.ChannelID = params.YouTubeChannelID
+	} else {
+		meta.ChannelID = current.YouTubeChannelID
+	}
+
+	videoID, err := ytClient.Upload(context.Background(), j.ResultPath, meta)
+	if err != nil {
+		onLog(fmt.Sprintf("YouTube upload failed: %v", err), "error")
+		return
+	}
+
+	j.YouTubeVideoID = videoID
+	j.YouTubeURL = ytpkg.VideoURL(videoID)
+	onLog(fmt.Sprintf("Published to YouTube: %s", j.YouTubeURL), "success")
+	log.Printf("[%s] Published to YouTube: %s", j.ID[:8], j.YouTubeURL)
+}
+
+func selectImageGenProvider(cfg *state.State) imagegen.Provider {
+	switch cfg.ImageGenProvider {
+	case "replicate":
+		return &imagegen.Replicate{
+			APIToken: cfg.ImageGenAPIKey,
+			Model:    cfg.ImageGenModel,
+		}
+	default: // "vllm"
+		return &imagegen.VLLM{
+			BaseURL: cfg.ImageGenURL,
+			APIKey:  cfg.ImageGenAPIKey,
+			Model:   cfg.ImageGenModel,
+		}
+	}
+}
+
+func modelScheduler(modelStore *model.Store, cfg *state.State) {
+	for {
+		time.Sleep(5 * time.Second)
+
+		for _, m := range modelStore.List() {
+			if m.Status != model.ModelStatusActive {
+				continue
+			}
+			if m.HasActivePost() {
+				continue
+			}
+			if !m.IsDue() {
+				continue
+			}
+			post := m.EnsurePlannedPost()
+			modelStore.PersistNow()
+			if post == nil {
+				continue
+			}
+			go processPost(m, post.Index, modelStore, cfg)
+		}
+	}
+}
+
+func processPost(m *model.Model, postIndex int, modelStore *model.Store, cfg *state.State) {
+	current := loadState()
+	if current == nil {
+		current = cfg
+	}
+
+	m.MarkPostCaptioning(postIndex)
+	m.AppendLog(fmt.Sprintf("[Post %d] Planning content...", postIndex), "info")
+	modelStore.PersistNow()
+
+	llm := inference.NewClient(current.InferenceURL, current.InferenceModel, current.InferenceAPIKey)
+
+	// Build context from previous posts.
+	var prevPosts []modelagent.PreviousPost
+	for _, p := range m.CompletedPosts() {
+		caption := p.Caption
+		if len(caption) > 100 {
+			caption = caption[:100] + "..."
+		}
+		prevPosts = append(prevPosts, modelagent.PreviousPost{
+			Index:   p.Index,
+			Scene:   p.Scene,
+			Caption: caption,
+		})
+	}
+
+	agentCfg := modelagent.Config{
+		LLM:           llm,
+		BraveAPIKey:   current.BraveSearchAPIKey,
+		ModelName:     m.Name,
+		Description:   m.Description,
+		Personality:   m.Personality,
+		Style:         m.Style,
+		PreviousPosts: prevPosts,
+	}
+
+	onEvent := func(msg, level string) {
+		m.AppendLog(fmt.Sprintf("[Post %d] %s", postIndex, msg), level)
+	}
+
+	result, err := modelagent.Run(context.Background(), agentCfg, onEvent)
+	if err != nil {
+		m.AppendLog(fmt.Sprintf("[Post %d] Content planning failed: %v", postIndex, err), "error")
+		m.FailPost(postIndex, err.Error())
+		modelStore.PersistNow()
+		return
+	}
+
+	m.CompletePostCaption(postIndex, result.Scene, result.Caption, result.ImagePrompt, result.Hashtags)
+	m.AppendLog(fmt.Sprintf("[Post %d] Caption ready, generating image: %s", postIndex, result.Scene), "info")
+	modelStore.PersistNow()
+
+	// Generate image.
+	provider := selectImageGenProvider(current)
+	postDir := filepath.Join("data", "models", m.ID, "posts", fmt.Sprintf("%03d", postIndex))
+	os.MkdirAll(postDir, 0755)
+
+	imgResult, err := provider.Generate(context.Background(), imagegen.Request{
+		Prompt:    result.ImagePrompt,
+		RefImages: m.RefImages,
+		Width:     1080,
+		Height:    1350,
+		Count:     1,
+	}, postDir)
+	if err != nil {
+		m.AppendLog(fmt.Sprintf("[Post %d] Image generation failed: %v", postIndex, err), "error")
+		m.FailPost(postIndex, err.Error())
+		modelStore.PersistNow()
+		return
+	}
+
+	m.CompletePostGeneration(postIndex, imgResult.ImagePaths)
+	m.AdvanceSchedule()
+	m.AppendLog(fmt.Sprintf("[Post %d] Complete: %s", postIndex, result.Scene), "success")
+	modelStore.PersistNow()
+
+	log.Printf("[model:%s] Post %d complete: %q", m.ID[:8], postIndex, result.Scene)
 }
 
 func checkDependencies() {

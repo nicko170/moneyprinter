@@ -29,10 +29,10 @@
     failed: "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-destructive text-destructive-foreground border-transparent",
   };
 
-  function appendLog(message, level) {
+  function appendLog(message, level, timestamp) {
     if (!logBody) return;
     const entry = document.createElement("div");
-    const time = new Date().toLocaleTimeString("en-GB", { hour12: false });
+    const d = timestamp ? new Date(timestamp) : new Date(); const time = d.toLocaleTimeString("en-GB", { hour12: false });
     const colors = {
       success: "text-green-400",
       error: "text-red-400",
@@ -73,7 +73,7 @@
         const data = await evResp.json();
         if (data.events) {
           for (const ev of data.events) {
-            appendLog(ev.message, ev.level);
+            appendLog(ev.message, ev.level, ev.timestamp);
             if (ev.id > lastEventId) lastEventId = ev.id;
           }
         }
@@ -145,7 +145,7 @@
       const data = await evResp.json();
       if (data.events) {
         for (const ev of data.events) {
-          appendLog(ev.message, ev.level);
+          appendLog(ev.message, ev.level, ev.timestamp);
           if (ev.id > lastEventId) lastEventId = ev.id;
         }
       }

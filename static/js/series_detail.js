@@ -10,10 +10,10 @@
   let pollHandle = null;
   const logBody = document.getElementById("logViewerBody");
 
-  function appendLog(message, level) {
+  function appendLog(message, level, timestamp) {
     if (!logBody) return;
     const entry = document.createElement("div");
-    const time = new Date().toLocaleTimeString("en-GB", { hour12: false });
+    const d = timestamp ? new Date(timestamp) : new Date(); const time = d.toLocaleTimeString("en-GB", { hour12: false });
     const colors = {
       success: "text-green-400",
       error: "text-red-400",
@@ -32,7 +32,7 @@
       const data = await resp.json();
       if (data.events) {
         for (const ev of data.events) {
-          appendLog(ev.message, ev.level);
+          appendLog(ev.message, ev.level, ev.timestamp);
           if (ev.id > lastEventId) lastEventId = ev.id;
         }
       }
@@ -47,7 +47,7 @@
         const data = await evResp.json();
         if (data.events) {
           for (const ev of data.events) {
-            appendLog(ev.message, ev.level);
+            appendLog(ev.message, ev.level, ev.timestamp);
             if (ev.id > lastEventId) lastEventId = ev.id;
           }
         }

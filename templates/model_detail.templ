@@ -1,0 +1,198 @@
+package templates
+
+import (
+	"fmt"
+	"path/filepath"
+	"github.com/moneyprinter/components/badge"
+	"github.com/moneyprinter/internal/model"
+)
+
+templ ModelDetail(m *model.Model) {
+	@Layout(m.Name) {
+		<div class="flex items-center gap-3 mb-6">
+			<a href="/models" class="text-muted-foreground hover:text-foreground text-sm">← Models</a>
+		</div>
+
+		<!-- Profile header -->
+		<div class="flex items-start gap-6 mb-8">
+			if len(m.RefImages) > 0 {
+				<div class="w-24 h-24 rounded-full overflow-hidden shrink-0 border-2 border-border">
+					<img src={ modelRefImageURL(m.ID, m.RefImages[0]) } alt={ m.Name } class="w-full h-full object-cover"/>
+				</div>
+			} else {
+				<div class="w-24 h-24 rounded-full bg-muted flex items-center justify-center shrink-0 border-2 border-border">
+					<span class="text-2xl text-muted-foreground/30">?</span>
+				</div>
+			}
+			<div class="flex-1 min-w-0">
+				<div class="flex items-center gap-3">
+					<h1 class="text-2xl font-bold">{ m.Name }</h1>
+					@modelStatusBadge(m.Status)
+				</div>
+				<p class="text-sm text-muted-foreground">{ "@" + m.Handle }</p>
+				if m.Bio != "" {
+					<p class="text-sm mt-1">{ m.Bio }</p>
+				}
+				<div class="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+					<span>{ modelPostCount(m) }</span>
+					<span>every { m.Schedule }</span>
+					if m.Status == model.ModelStatusActive && !m.NextRunAt.IsZero() {
+						<span>next: { m.NextRunAt.Format("Jan 2 15:04") }</span>
+					}
+				</div>
+			</div>
+			<div class="flex items-center gap-2 shrink-0">
+				if m.Status == model.ModelStatusActive {
+					<button id="pauseBtn" type="button" class="inline-flex items-center justify-center h-8 px-3 rounded-md border border-input text-xs hover:bg-accent hover:text-accent-foreground transition-colors">
+						Pause
+					</button>
+				} else {
+					<button id="resumeBtn" type="button" class="inline-flex items-center justify-center h-8 px-3 rounded-md border border-input text-xs hover:bg-accent hover:text-accent-foreground transition-colors">
+						Resume
+					</button>
+				}
+				<button id="triggerBtn" type="button" class="inline-flex items-center justify-center h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs hover:bg-primary/90 transition-colors">
+					Generate Now
+				</button>
+				if len(m.RefImages) == 0 {
+					<button id="genRefsBtn" type="button" class="inline-flex items-center justify-center h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs hover:bg-primary/90 transition-colors">
+						Generate Refs
+					</button>
+				}
+			</div>
+		</div>
+
+		<!-- Reference images -->
+		if len(m.RefImages) > 0 {
+			<div class="mb-8">
+				<h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Reference Images</h2>
+				<div class="flex gap-3 overflow-x-auto pb-2">
+					for _, img := range m.RefImages {
+						<div class="w-32 h-40 rounded-lg overflow-hidden shrink-0 border border-border">
+							<img src={ modelRefImageURL(m.ID, img) } alt="Reference" class="w-full h-full object-cover"/>
+						</div>
+					}
+				</div>
+			</div>
+		}
+
+		<!-- Posts -->
+		<h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Posts</h2>
+		if completedPostsCount(m) == 0 && !hasActivePosts(m) {
+			<div class="rounded-lg border border-dashed border-border py-8 text-center mb-6">
+				<p class="text-sm text-muted-foreground">No posts yet. Generate reference images first, then posts will be created on schedule.</p>
+			</div>
+		} else {
+			<div id="postGrid" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
+				for i := len(m.Posts) - 1; i >= 0; i-- {
+					if m.Posts[i].Status == model.PostStatusCompleted && len(m.Posts[i].ImagePaths) > 0 {
+						@postCard(m.ID, m.Posts[i])
+					}
+				}
+			</div>
+			<!-- Active/planned posts -->
+			<div id="postStatusArea">
+				for i := len(m.Posts) - 1; i >= 0; i-- {
+					if m.Posts[i].Status != model.PostStatusCompleted {
+						@postStatusRow(m.Posts[i])
+					}
+				}
+			</div>
+		}
+
+		<!-- Log viewer -->
+		<div class="rounded-lg border overflow-hidden mt-6">
+			<div class="flex items-center justify-between bg-zinc-900 px-4 py-2">
+				<span class="text-xs font-medium uppercase tracking-wider text-zinc-500">Activity Log</span>
+			</div>
+			<div id="logViewerBody" class="bg-zinc-950 p-4 font-mono text-xs leading-relaxed max-h-80 overflow-y-auto"></div>
+		</div>
+
+		<script>
+			window.__modelId = document.currentScript.getAttribute("data-model-id");
+		</script>
+		<script data-model-id={ m.ID } src="/static/js/model_detail.js?v=2"></script>
+	}
+}
+
+templ postCard(modelID string, p model.Post) {
+	<div class="rounded-lg border border-border/60 overflow-hidden bg-card" data-post-index={ fmt.Sprintf("%d", p.Index) }>
+		<div class="aspect-[4/5] overflow-hidden bg-muted">
+			<img src={ modelPostImageURL(modelID, p.Index, p.ImagePaths[0]) } alt={ p.Scene } class="w-full h-full object-cover"/>
+		</div>
+		<div class="p-3">
+			<p class="text-sm leading-relaxed line-clamp-3">{ p.Caption }</p>
+			if len(p.Hashtags) > 0 {
+				<p class="text-xs text-muted-foreground mt-1.5">
+					for i, tag := range p.Hashtags {
+						if i > 0 {
+							{ " " }
+						}
+						{ "#" + tag }
+					}
+				</p>
+			}
+		</div>
+	</div>
+}
+
+templ postStatusRow(p model.Post) {
+	<div class="flex items-center gap-3 rounded-lg border border-border/60 px-4 py-3 mb-2" data-post-status={ fmt.Sprintf("%d", p.Index) }>
+		<span class="text-xs text-muted-foreground">Post { fmt.Sprintf("%d", p.Index) }</span>
+		@postStatusBadge(p.Status)
+		if p.Scene != "" {
+			<span class="text-sm truncate">{ p.Scene }</span>
+		}
+		if p.Error != "" {
+			<span class="text-xs text-red-500 truncate">{ p.Error }</span>
+		}
+	</div>
+}
+
+templ postStatusBadge(status model.PostStatus) {
+	switch status {
+		case model.PostStatusPlanned:
+			@badge.Badge(badge.Props{Variant: badge.VariantSecondary}) {
+				Planned
+			}
+		case model.PostStatusCaptioning:
+			@badge.Badge(badge.Props{Class: "bg-purple-100 text-purple-800 border-purple-200"}) {
+				Writing
+			}
+		case model.PostStatusGenerating:
+			@badge.Badge(badge.Props{Class: "bg-blue-100 text-blue-800 border-blue-200"}) {
+				Generating
+			}
+		case model.PostStatusCompleted:
+			@badge.Badge(badge.Props{Class: "bg-green-100 text-green-800 border-green-200"}) {
+				Completed
+			}
+		case model.PostStatusFailed:
+			@badge.Badge(badge.Props{Variant: badge.VariantDestructive}) {
+				Failed
+			}
+	}
+}
+
+func completedPostsCount(m *model.Model) int {
+	n := 0
+	for _, p := range m.Posts {
+		if p.Status == model.PostStatusCompleted {
+			n++
+		}
+	}
+	return n
+}
+
+func hasActivePosts(m *model.Model) bool {
+	for _, p := range m.Posts {
+		if p.Status == model.PostStatusCaptioning || p.Status == model.PostStatusGenerating || p.Status == model.PostStatusPlanned {
+			return true
+		}
+	}
+	return false
+}
+
+func modelPostImageURL(modelID string, postIndex int, imagePath string) string {
+	return fmt.Sprintf("/model-images/%s/posts/%03d/%s", modelID, postIndex, filepath.Base(imagePath))
+}

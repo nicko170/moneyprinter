@@ -40,6 +40,10 @@ type Params struct {
 	SeriesTheme  string `json:"seriesTheme,omitempty"`
 	EpisodeIndex int    `json:"episodeIndex,omitempty"` // 1-based
 
+	// YouTube auto-publish
+	AutoPublishYT    bool   `json:"autoPublishYT,omitempty"`
+	YouTubeChannelID string `json:"youtubeChannelId,omitempty"`
+
 	// End card
 	EndCardBgColor  string `json:"endCardBgColor"`
 	EndCardCTAText  string `json:"endCardCTAText"`

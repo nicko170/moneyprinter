@@ -23,6 +23,19 @@ type State struct {
 	TTSChatterboxVoice   string `json:"tts_chatterbox_voice_ref"`
 
 	BraveSearchAPIKey string `json:"brave_search_api_key"`
+
+	// YouTube publishing
+	YouTubeClientID     string `json:"youtube_client_id"`
+	YouTubeClientSecret string `json:"youtube_client_secret"`
+	YouTubeRefreshToken string `json:"youtube_refresh_token"`
+	YouTubeChannelID    string `json:"youtube_channel_id"`
+	YouTubeAutoPublish  bool   `json:"youtube_auto_publish"`
+
+	// Image generation
+	ImageGenProvider string `json:"imagegen_provider"` // "vllm", "replicate", or "openai"
+	ImageGenURL      string `json:"imagegen_url"`      // base URL for vLLM (e.g. "http://localhost:8000")
+	ImageGenAPIKey   string `json:"imagegen_api_key"`
+	ImageGenModel    string `json:"imagegen_model"`    // e.g. "flux-2", "black-forest-labs/flux-1.1-pro"
 	AssemblyAIKey     string `json:"assembly_ai_api_key"`
 	ImageMagick   string `json:"imagemagick_binary"`
 	OutputDir     string `json:"output_dir"`
@@ -59,6 +72,15 @@ func (s *State) applyDefaults() {
 	if s.TTSProvider == "" {
 		s.TTSProvider = "elevenlabs"
 	}
+	if s.ImageGenProvider == "" {
+		s.ImageGenProvider = "vllm"
+	}
+	if s.ImageGenURL == "" {
+		s.ImageGenURL = "http://localhost:8000"
+	}
+	if s.ImageGenModel == "" {
+		s.ImageGenModel = "flux-2"
+	}
 	if s.TTSChatterboxURL == "" {
 		s.TTSChatterboxURL = "http://localhost:7860"
 	}
@@ -83,6 +105,9 @@ func (s *State) Redacted() State {
 	r.PexelsAPIKey = redact(r.PexelsAPIKey)
 	r.PixabayAPIKey = redact(r.PixabayAPIKey)
 	r.JinaAPIKey = redact(r.JinaAPIKey)
+	r.YouTubeClientSecret = redact(r.YouTubeClientSecret)
+	r.YouTubeRefreshToken = redact(r.YouTubeRefreshToken)
+	r.ImageGenAPIKey = redact(r.ImageGenAPIKey)
 	r.TTSElevenLabsAPIKey = redact(r.TTSElevenLabsAPIKey)
 	r.TTSTikTokSessionID = redact(r.TTSTikTokSessionID)
 	r.BraveSearchAPIKey = redact(r.BraveSearchAPIKey)
