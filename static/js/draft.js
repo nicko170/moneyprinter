@@ -30,7 +30,7 @@
 
   async function poll() {
     try {
-      const evResp = await fetch(`/api/drafts/${draftId}/events?after=${lastEventId}`);
+      const evResp = await fetch(`/api/shorts/drafts/${draftId}/events?after=${lastEventId}`);
       if (evResp.ok) {
         const data = await evResp.json();
         if (data.events) {
@@ -41,7 +41,7 @@
         }
       }
 
-      const draftResp = await fetch(`/api/drafts/${draftId}`);
+      const draftResp = await fetch(`/api/shorts/drafts/${draftId}`);
       if (draftResp.ok) {
         const data = await draftResp.json();
         const d = data.draft;
@@ -78,10 +78,10 @@
       approveBtn.disabled = true;
       approveBtn.textContent = "Submitting…";
       try {
-        const resp = await fetch(`/api/drafts/${draftId}/approve`, { method: "POST" });
+        const resp = await fetch(`/api/shorts/drafts/${draftId}/approve`, { method: "POST" });
         const data = await resp.json();
         if (data.status === "success" && data.jobId) {
-          window.location.href = "/jobs/" + data.jobId;
+          window.location.href = "/shorts/jobs/" + data.jobId;
         } else {
           if (typeof showToast === "function") showToast(data.message || "Approval failed.", "error");
           approveBtn.disabled = false;
@@ -97,13 +97,13 @@
 
   if (redraftBtn) {
     redraftBtn.addEventListener("click", () => {
-      window.location.href = "/jobs/create";
+      window.location.href = "/shorts/create";
     });
   }
 
   async function loadAllEvents() {
     try {
-      const evResp = await fetch(`/api/drafts/${draftId}/events?after=0`);
+      const evResp = await fetch(`/api/shorts/drafts/${draftId}/events?after=0`);
       if (!evResp.ok) return;
       const data = await evResp.json();
       if (data.events) {

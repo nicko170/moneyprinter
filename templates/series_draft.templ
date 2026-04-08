@@ -11,7 +11,7 @@ import (
 templ SeriesDraftDetail(sd *draft.SeriesDraft) {
 	@Layout("Series Research — " + sd.Theme) {
 		<div class="flex items-center gap-3 mb-6">
-			<a href="/series/create" class="text-muted-foreground hover:text-foreground text-sm">← New Series</a>
+			<a href="/shorts" class="text-muted-foreground hover:text-foreground text-sm">← Shorts</a>
 		</div>
 		<div class="flex items-center justify-between mb-6">
 			<div>
@@ -62,7 +62,7 @@ templ SeriesDraftDetail(sd *draft.SeriesDraft) {
 								<p class="font-medium text-sm">{ ep.Subject }</p>
 							</div>
 							<div id={ fmt.Sprintf("ep-%d-badge", ep.Index) }>
-								@episodeStatusBadge(ep.Status)
+								@draftEpisodeStatusBadge(ep.Status)
 							</div>
 						</div>
 					}
@@ -181,7 +181,7 @@ templ seriesDraftStatusBadge(status draft.SeriesDraftStatus) {
 	}
 }
 
-templ episodeStatusBadge(status draft.EpisodeDraftStatus) {
+templ draftEpisodeStatusBadge(status draft.EpisodeDraftStatus) {
 	switch status {
 	case draft.EpisodeStatusQueued:
 		@badge.Badge(badge.Props{Variant: badge.VariantOutline}) { Queued }

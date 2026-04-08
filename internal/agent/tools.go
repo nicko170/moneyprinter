@@ -49,9 +49,13 @@ var (
 			Parameters: json.RawMessage(`{
 				"type": "object",
 				"properties": {
+					"topic": {
+						"type": "string",
+						"description": "A short, catchy title for this video (under 60 chars). For series episodes, this is the specific topic you chose."
+					},
 					"script": {
 						"type": "string",
-						"description": "The complete video script. Plain ASCII text only, 80-120 words, no markdown."
+						"description": "The complete video script. Plain ASCII text, 80-120 words, no markdown. One sentence per line (use \\n between sentences). Each line becomes a subtitle card."
 					},
 					"sources": {
 						"type": "array",
@@ -66,7 +70,7 @@ var (
 						}
 					}
 				},
-				"required": ["script", "sources"]
+				"required": ["topic", "script", "sources"]
 			}`),
 		},
 	}

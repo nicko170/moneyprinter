@@ -468,12 +468,14 @@ var hookPresets = map[string]string{
 
 // Tone presets — prompt instructions for overall script style.
 var tonePresets = map[string]string{
-	"informative":  `Write in a calm, educational tone. Clear explanations, factual delivery. Like a friendly teacher.`,
-	"hype":         `Write with HIGH energy and excitement. Use power words, urgency, exclamation. Like an enthusiastic presenter who can't contain themselves.`,
-	"sarcastic":    `Write with dry humor and clever observations. Be witty and sarcastic, but not mean-spirited. Think stand-up comedian doing a bit.`,
-	"dramatic":     `Write as if narrating an epic documentary. Build tension and wonder. Make the viewer feel like they're discovering something incredible for the first time.`,
-	"casual":       `Write like you're explaining this to a friend over coffee. Conversational, relaxed, use "you" and "we". No formal language.`,
-	"professional": `Write in a polished, authoritative business tone. Confident assertions, precise language. Like a TED talk.`,
+	"informative":  `Write smart and clear, but never boring. You're the friend who makes everyone at the party go "wait, really?!" Teach, but make it addictive.`,
+	"hype":         `UNHINGED ENERGY. You just found out the most insane thing and you're speed-talking to your friend. Every sentence hits like a headline.`,
+	"sarcastic":    `Peak internet sarcasm. Deadpan delivery, unexpected comparisons, the kind of commentary that makes people screenshot and send to friends.`,
+	"dramatic":     `Narrate like a trailer for a documentary that doesn't exist yet. Build tension like a thriller. Every sentence is an escalation.`,
+	"casual":       `Talking to your best friend at 2am about the wildest thing you just learned. Zero filter, genuine reactions.`,
+	"professional": `TED talk energy but actually interesting. Polished and confident with enough edge to keep gen Z watching.`,
+	"unhinged":     `Full internet brain rot. Write like a sleep-deprived genius who sees connections nobody else does. Chaotic, absurd, meme energy, fever dream logic that still lands.`,
+	"storyteller":  `Master storyteller mode. Build a narrative arc — setup, escalation, twist. Every line should make them NEED the next one.`,
 }
 
 func generateScript(ctx context.Context, llm *inference.Client, params Params) (string, error) {
@@ -482,6 +484,8 @@ func generateScript(ctx context.Context, llm *inference.Client, params Params) (
 		prompt = `Generate a script for a short-form video (30-60 seconds when spoken aloud).
 The script MUST be between 80 and 120 words. This is critical — short-form content must be concise.
 Use short, punchy sentences. Each sentence should be under 15 words.
+Put EACH SENTENCE on its own line. One sentence per line, no blank lines.
+Each line becomes a separate subtitle card and audio chunk in the final video.
 Do not under any circumstance reference this prompt in your response.
 Get straight to the point, don't start with unnecessary things like, "welcome to this video".
 The script should be related to the subject of the video.
@@ -618,27 +622,42 @@ Script:
 }
 
 func splitSentences(script string) []string {
-	// Protect common abbreviations from being split (Dr. Mr. Ms. etc.)
+	// Prefer line breaks authored by the model — each line is a subtitle card.
+	lines := strings.Split(script, "\n")
+	var sentences []string
+	for _, l := range lines {
+		l = strings.TrimSpace(l)
+		if l != "" {
+			sentences = append(sentences, l)
+		}
+	}
+
+	// If the model returned everything on one line, fall back to punctuation splitting.
+	if len(sentences) <= 1 && len(script) > 0 {
+		sentences = splitByPunctuation(script)
+	}
+
+	return sentences
+}
+
+// splitByPunctuation is the legacy fallback for scripts without line breaks.
+func splitByPunctuation(script string) []string {
 	abbrevs := regexp.MustCompile(`\b(Dr|Mr|Mrs|Ms|Prof|St|Jr|Sr|vs|etc|approx|inc|corp|ltd)\.\s`)
 	protected := abbrevs.ReplaceAllStringFunc(script, func(m string) string {
 		return strings.Replace(m, ". ", "ABBREVDOT ", 1)
 	})
 
-	// Split on all sentence-ending punctuation, semicolons, newlines, em-dashes.
-	delimiters := regexp.MustCompile(`([.!?]+\s+|;\s+|\n+|—)`)
+	delimiters := regexp.MustCompile(`([.!?]+\s+|;\s+|—)`)
 	tokens := delimiters.Split(protected, -1)
 	separators := delimiters.FindAllString(protected, -1)
 
-	// Re-attach punctuation to preceding chunk for natural TTS prosody.
 	var sentences []string
 	for i, tok := range tokens {
-		// Restore protected abbreviations.
 		tok = strings.ReplaceAll(tok, "ABBREVDOT", ".")
 		tok = strings.TrimSpace(tok)
 		if tok == "" {
 			continue
 		}
-		// Grab the first punctuation char from the separator that followed this token.
 		if i < len(separators) {
 			for _, r := range separators[i] {
 				if r == '.' || r == '!' || r == '?' || r == ';' {
@@ -647,7 +666,6 @@ func splitSentences(script string) []string {
 				}
 			}
 		}
-		// If still very long (>150 chars), break on commas.
 		if len(tok) > 150 {
 			parts := strings.Split(tok, ", ")
 			var buf strings.Builder

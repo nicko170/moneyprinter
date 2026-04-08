@@ -32,7 +32,7 @@
   async function poll() {
     try {
       const evResp = await fetch(
-        `/api/jobs/${jobId}/events?after=${lastEventId}`
+        `/api/shorts/jobs/${jobId}/events?after=${lastEventId}`
       );
       if (evResp.ok) {
         const data = await evResp.json();
@@ -44,7 +44,7 @@
         }
       }
 
-      const jobResp = await fetch(`/api/jobs/${jobId}`);
+      const jobResp = await fetch(`/api/shorts/jobs/${jobId}`);
       if (jobResp.ok) {
         const data = await jobResp.json();
         const job = data.job;
@@ -89,7 +89,7 @@
       cancelBtn.disabled = true;
       cancelBtn.textContent = "Cancelling…";
       try {
-        await fetch(`/api/jobs/${jobId}/cancel`, { method: "POST" });
+        await fetch(`/api/shorts/jobs/${jobId}/cancel`, { method: "POST" });
         showToast("Cancellation requested.", "info");
       } catch (e) {
         showToast("Failed to cancel.", "error");
@@ -103,21 +103,21 @@
   if (retryBtn) {
     retryBtn.addEventListener("click", async () => {
       try {
-        const jobResp = await fetch(`/api/jobs/${jobId}`);
+        const jobResp = await fetch(`/api/shorts/jobs/${jobId}`);
         const data = await jobResp.json();
         if (data.job && data.job.payload) {
           const payload = typeof data.job.payload === "string"
             ? JSON.parse(data.job.payload)
             : data.job.payload;
           payload.force = true;
-          const resp = await fetch("/api/generate", {
+          const resp = await fetch("/api/shorts/generate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
           const result = await resp.json();
           if (result.jobId) {
-            window.location.href = "/jobs/" + result.jobId;
+            window.location.href = "/shorts/jobs/" + result.jobId;
           }
         }
       } catch (e) {
@@ -131,7 +131,7 @@
     const card = document.getElementById("metadataCard");
     if (!card) return;
     try {
-      const resp = await fetch(`/api/jobs/${jobId}/metadata`);
+      const resp = await fetch(`/api/shorts/jobs/${jobId}/metadata`);
       if (!resp.ok) return;
       const meta = await resp.json();
       document.getElementById("metaTitle").textContent = meta.title || "";
@@ -155,7 +155,7 @@
   // Load all historical events (e.g. on page reload after completion).
   async function loadAllEvents() {
     try {
-      const resp = await fetch(`/api/jobs/${jobId}/events?after=0`);
+      const resp = await fetch(`/api/shorts/jobs/${jobId}/events?after=0`);
       if (!resp.ok) return;
       const data = await resp.json();
       if (data.events) {
@@ -172,7 +172,7 @@
   // Load and render the script if available.
   async function loadScript() {
     try {
-      const resp = await fetch(`/api/jobs/${jobId}/script`);
+      const resp = await fetch(`/api/shorts/jobs/${jobId}/script`);
       if (!resp.ok) return;
       const data = await resp.json();
       if (!data.script) return;

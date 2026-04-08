@@ -49,7 +49,7 @@ func JobDetail(j *job.Job) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex items-center gap-3 mb-6\"><a href=\"/jobs\" class=\"text-muted-foreground hover:text-foreground text-sm\">← Dashboard</a></div><div class=\"flex items-center justify-between mb-6\"><div><h1 class=\"text-2xl font-bold\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex items-center gap-3 mb-6\"><a href=\"/shorts\" class=\"text-muted-foreground hover:text-foreground text-sm\">← Shorts</a></div><div class=\"flex items-center justify-between mb-6\"><div><h1 class=\"text-2xl font-bold\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -504,9 +504,9 @@ func JobDetail(j *job.Job) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var22 templ.SafeURL
-				templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/series/" + j.SeriesID))
+				templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/shorts/series/" + j.SeriesID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/detail.templ`, Line: 156, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/detail.templ`, Line: 156, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 				if templ_7745c5c3_Err != nil {

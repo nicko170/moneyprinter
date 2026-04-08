@@ -48,7 +48,7 @@ func DraftDetail(d *draft.Draft) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex items-center gap-3 mb-6\"><a href=\"/jobs/create\" class=\"text-muted-foreground hover:text-foreground text-sm\">← New Draft</a></div><div class=\"flex items-center justify-between mb-6\"><div><h1 class=\"text-2xl font-bold\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex items-center gap-3 mb-6\"><a href=\"/shorts\" class=\"text-muted-foreground hover:text-foreground text-sm\">← Shorts</a></div><div class=\"flex items-center justify-between mb-6\"><div><h1 class=\"text-2xl font-bold\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

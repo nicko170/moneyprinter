@@ -4,74 +4,218 @@ import (
 	"fmt"
 	"github.com/moneyprinter/components/badge"
 	"github.com/moneyprinter/components/button"
-	"github.com/moneyprinter/components/card"
+	"github.com/moneyprinter/internal/draft"
 	"github.com/moneyprinter/internal/job"
 )
 
-templ Dashboard(jobs []*job.Job, seriesList []*job.Series) {
-	@Layout("Dashboard") {
-		<div class="flex items-center justify-between mb-6">
-			<h1 class="text-2xl font-bold">Dashboard</h1>
-			<div class="flex gap-2">
-				@button.Button(button.Props{Href: "/jobs/create"}) {
-					+ Create Job
-				}
-				@button.Button(button.Props{Href: "/series/create", Variant: button.VariantOutline}) {
-					+ Create Series
-				}
-			</div>
-		</div>
-		if len(seriesList) > 0 {
-			<h2 class="text-lg font-semibold mb-3">Series</h2>
-			<div class="grid gap-3 mb-8">
-				for _, s := range seriesList {
-					@card.Card(card.Props{Class: "hover:shadow-md transition-shadow"}) {
-						<a href={ templ.SafeURL("/series/" + s.ID) } class="block p-4">
-							<div class="flex items-center justify-between">
-								<div>
-									<p class="font-medium">{ s.Theme }</p>
-									<p class="text-xs text-muted-foreground mt-1">
-										{ formatInt(s.EpisodeCount) } episodes
-									</p>
-								</div>
-								@seriesStatusBadge(s.Status)
-							</div>
-						</a>
-					}
-				}
-			</div>
+type DashboardProps struct {
+	Jobs         []*job.Job
+	SeriesList   []*job.Series
+	Drafts       []*draft.Draft
+	SeriesDrafts []*draft.SeriesDraft
+}
+
+// activeDrafts returns drafts that are still in progress (not yet approved into a job).
+func activeDrafts(drafts []*draft.Draft) []*draft.Draft {
+	var active []*draft.Draft
+	for _, d := range drafts {
+		if d.Status == draft.StatusResearching || d.Status == draft.StatusFailed {
+			active = append(active, d)
 		}
-		<h2 class="text-lg font-semibold mb-3">Jobs</h2>
-		if len(jobs) == 0 {
-			@card.Card() {
-				@card.Content(card.ContentProps{Class: "py-12 text-center"}) {
-					<p class="text-muted-foreground">No jobs yet. Create one to get started.</p>
-				}
+	}
+	return active
+}
+
+// activeSeriesDrafts returns series drafts still in progress.
+func activeSeriesDrafts(sds []*draft.SeriesDraft) []*draft.SeriesDraft {
+	var active []*draft.SeriesDraft
+	for _, sd := range sds {
+		if sd.Status != "ready" {
+			active = append(active, sd)
+		}
+	}
+	return active
+}
+
+func countByStatus(jobs []*job.Job, status job.Status) int {
+	n := 0
+	for _, j := range jobs {
+		if j.Status == status {
+			n++
+		}
+	}
+	return n
+}
+
+func seriesProgress(s *job.Series) string {
+	done := 0
+	for _, ep := range s.Episodes {
+		if ep.Status == job.EpisodeStatusCompleted || ep.Status == job.EpisodeStatusGenerating {
+			done++
+		}
+	}
+	if len(s.Episodes) == 0 {
+		return fmt.Sprintf("%d episodes", s.EpisodeCount)
+	}
+	return fmt.Sprintf("%d/%d", done, s.EpisodeCount)
+}
+
+func formatInt(n int) string {
+	return fmt.Sprintf("%d", n)
+}
+
+templ Dashboard(props DashboardProps) {
+	@Layout("Shorts") {
+		<!-- Stats strip -->
+		<div class="flex items-center justify-between mb-8">
+			<div>
+				<h1 class="text-2xl font-bold tracking-tight">Shorts</h1>
+				<div class="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
+					if len(props.Jobs) > 0 {
+						<span>{ formatInt(len(props.Jobs)) } jobs</span>
+						if n := countByStatus(props.Jobs, job.StatusRunning); n > 0 {
+							<span class="flex items-center gap-1.5">
+								<span class="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+								{ formatInt(n) } running
+							</span>
+						}
+						if n := countByStatus(props.Jobs, job.StatusCompleted); n > 0 {
+							<span class="text-green-600">{ formatInt(n) } completed</span>
+						}
+					}
+					if len(props.SeriesList) > 0 {
+						<span>{ formatInt(len(props.SeriesList)) } series</span>
+					}
+				</div>
+			</div>
+			@button.Button(button.Props{Href: "/shorts/create"}) {
+				+ Create
 			}
-		} else {
-			<div class="grid gap-3">
-				for _, j := range jobs {
-					@card.Card(card.Props{Class: "hover:shadow-md transition-shadow"}) {
-						<a href={ templ.SafeURL("/jobs/" + j.ID) } class="block p-4">
-							<div class="flex items-center justify-between gap-4 overflow-hidden">
+		</div>
+
+		<!-- Active work — research in progress -->
+		if ads := activeDrafts(props.Drafts); len(ads) > 0 || len(activeSeriesDrafts(props.SeriesDrafts)) > 0 {
+			<div class="mb-8">
+				<div class="flex items-center gap-2 mb-3">
+					<span class="h-1.5 w-1.5 rounded-full bg-purple-500 animate-pulse"></span>
+					<h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Research</h2>
+				</div>
+				<div class="grid gap-2">
+					for _, sd := range activeSeriesDrafts(props.SeriesDrafts) {
+						<a href={ templ.SafeURL("/shorts/series-drafts/" + sd.ID) } class="group flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-card px-4 py-3 hover:border-border hover:bg-accent/30 transition-all">
+							<div class="min-w-0 flex-1">
+								<p class="text-sm font-medium truncate group-hover:text-foreground">{ sd.Theme }</p>
+								<p class="text-xs text-muted-foreground mt-0.5">Series · { itoa(sd.EpisodeCount) } episodes</p>
+							</div>
+							@seriesDraftStatusBadge(sd.Status)
+						</a>
+					}
+					for _, d := range ads {
+						<a href={ templ.SafeURL("/shorts/drafts/" + d.ID) } class="group flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-card px-4 py-3 hover:border-border hover:bg-accent/30 transition-all">
+							<div class="min-w-0 flex-1">
+								<p class="text-sm font-medium truncate group-hover:text-foreground">{ d.Subject }</p>
+								<p class="text-xs text-muted-foreground mt-0.5">{ d.CreatedAt.Format("Jan 2 15:04") }</p>
+							</div>
+							@draftStatusBadge(d.Status)
+						</a>
+					}
+				</div>
+			</div>
+		}
+
+		<!-- Drafts ready for approval — compact callout -->
+		for _, d := range props.Drafts {
+			if d.Status == draft.StatusDone {
+				<a href={ templ.SafeURL("/shorts/drafts/" + d.ID) } class="group flex items-center gap-3 mb-3 rounded-lg border border-green-200 dark:border-green-900 bg-green-50/50 dark:bg-green-950/20 px-4 py-2.5 hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors">
+					<div class="h-2 w-2 rounded-full bg-green-500 shrink-0"></div>
+					<p class="text-sm flex-1 truncate"><span class="font-medium">{ d.Subject }</span> <span class="text-muted-foreground">— ready for approval</span></p>
+					<svg class="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 10a.75.75 0 01.75-.75h6.638L10.23 7.29a.75.75 0 111.04-1.08l3.5 3.25a.75.75 0 010 1.08l-3.5 3.25a.75.75 0 11-1.04-1.08l2.158-1.96H5.75A.75.75 0 015 10z" clip-rule="evenodd"></path></svg>
+				</a>
+			}
+		}
+
+		<!-- Series -->
+		if len(props.SeriesList) > 0 {
+			<div class="mb-8">
+				<h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Series</h2>
+				<div class="grid gap-2">
+					for _, s := range props.SeriesList {
+						<a href={ templ.SafeURL("/shorts/series/" + s.ID) } class="group rounded-lg border border-border/60 bg-card hover:border-border hover:bg-accent/30 transition-all overflow-hidden">
+							<div class="flex items-center gap-4 px-4 py-3">
 								<div class="min-w-0 flex-1">
-									<p class="font-medium truncate">{ j.Subject }</p>
-									<p class="text-xs text-muted-foreground mt-1">
-										{ j.CreatedAt.Format("Jan 2 15:04") }
-										if j.SeriesID != "" {
-											<span class="ml-2">· part of series</span>
+									<div class="flex items-center gap-2">
+										<p class="text-sm font-medium truncate group-hover:text-foreground">{ s.Theme }</p>
+										@seriesStatusBadge(s.Status)
+									</div>
+									<div class="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+										<span>{ seriesProgress(s) } episodes</span>
+										if s.Schedule != "" && s.Schedule != "now" {
+											<span>every { s.Schedule }</span>
 										}
-									</p>
+										if s.Status == job.SeriesStatusRunning && !s.NextRunAt.IsZero() && s.Schedule != "now" && s.Schedule != "" {
+											<span>next { s.NextRunAt.Format("Jan 2 15:04") }</span>
+										}
+									</div>
 								</div>
-								<div class="shrink-0">
-									@jobStatusBadge(j.Status)
-								</div>
+								<!-- Mini progress bar -->
+								if len(s.Episodes) > 0 {
+									<div class="w-20 shrink-0">
+										<div class="h-1 w-full rounded-full bg-muted overflow-hidden">
+											<div class="h-full rounded-full bg-primary transition-all" style={ fmt.Sprintf("width:%d%%", episodePercent(s)) }></div>
+										</div>
+									</div>
+								}
 							</div>
 						</a>
 					}
-				}
+				</div>
 			</div>
 		}
+
+		<!-- Jobs -->
+		<div>
+			<h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Jobs</h2>
+			if len(props.Jobs) == 0 && len(props.SeriesList) == 0 {
+				<div class="rounded-lg border border-dashed border-border py-16 text-center">
+					<p class="text-sm text-muted-foreground mb-3">No videos yet</p>
+					@button.Button(button.Props{Href: "/shorts/create", Variant: button.VariantOutline}) {
+						Create your first video
+					}
+				</div>
+			} else if len(props.Jobs) == 0 {
+				<div class="rounded-lg border border-dashed border-border py-8 text-center">
+					<p class="text-sm text-muted-foreground">No individual jobs</p>
+				</div>
+			} else {
+				<div class="grid gap-2">
+					for _, j := range props.Jobs {
+						<a href={ templ.SafeURL("/shorts/jobs/" + j.ID) } class="group flex items-center gap-4 rounded-lg border border-border/60 bg-card px-4 py-3 hover:border-border hover:bg-accent/30 transition-all overflow-hidden">
+							<div class="min-w-0 flex-1">
+								<p class="text-sm font-medium truncate group-hover:text-foreground">{ j.Subject }</p>
+								<div class="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+									<span>{ j.CreatedAt.Format("Jan 2 15:04") }</span>
+									if j.SeriesID != "" {
+										<span>· series</span>
+									}
+								</div>
+							</div>
+							<div class="flex items-center gap-2 shrink-0">
+								@jobStatusBadge(j.Status)
+								if j.Status == job.StatusCompleted && j.ResultPath != "" {
+									<span class="text-xs text-muted-foreground group-hover:text-foreground transition-colors" title="Download">
+										<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+											<path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z"></path>
+											<path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z"></path>
+										</svg>
+									</span>
+								}
+							</div>
+						</a>
+					}
+				</div>
+			}
+		</div>
+
 		<script src="/static/js/dashboard.js"></script>
 	}
 }
@@ -83,11 +227,11 @@ templ jobStatusBadge(status job.Status) {
 				Queued
 			}
 		case job.StatusRunning:
-			@badge.Badge(badge.Props{Class: "bg-blue-100 text-blue-800 border-blue-200"}) {
+			@badge.Badge(badge.Props{Class: "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800"}) {
 				Running
 			}
 		case job.StatusCompleted:
-			@badge.Badge(badge.Props{Class: "bg-green-100 text-green-800 border-green-200"}) {
+			@badge.Badge(badge.Props{Class: "bg-green-100 text-green-800 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800"}) {
 				Completed
 			}
 		case job.StatusFailed:
@@ -95,7 +239,7 @@ templ jobStatusBadge(status job.Status) {
 				Failed
 			}
 		case job.StatusCancelled:
-			@badge.Badge(badge.Props{Class: "bg-yellow-100 text-yellow-800 border-yellow-200"}) {
+			@badge.Badge(badge.Props{Class: "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800"}) {
 				Cancelled
 			}
 	}
@@ -108,11 +252,15 @@ templ seriesStatusBadge(status job.SeriesStatus) {
 				Pending
 			}
 		case job.SeriesStatusRunning:
-			@badge.Badge(badge.Props{Class: "bg-blue-100 text-blue-800 border-blue-200"}) {
+			@badge.Badge(badge.Props{Class: "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800"}) {
 				Running
 			}
+		case job.SeriesStatusPaused:
+			@badge.Badge(badge.Props{Class: "bg-yellow-100 text-yellow-800 border-yellow-200"}) {
+				Paused
+			}
 		case job.SeriesStatusCompleted:
-			@badge.Badge(badge.Props{Class: "bg-green-100 text-green-800 border-green-200"}) {
+			@badge.Badge(badge.Props{Class: "bg-green-100 text-green-800 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800"}) {
 				Completed
 			}
 		case job.SeriesStatusFailed:
@@ -122,6 +270,15 @@ templ seriesStatusBadge(status job.SeriesStatus) {
 	}
 }
 
-func formatInt(n int) string {
-	return fmt.Sprintf("%d", n)
+func episodePercent(s *job.Series) int {
+	if len(s.Episodes) == 0 {
+		return 0
+	}
+	done := 0
+	for _, ep := range s.Episodes {
+		if ep.Status == job.EpisodeStatusCompleted || ep.Status == job.EpisodeStatusGenerating {
+			done++
+		}
+	}
+	return (done * 100) / len(s.Episodes)
 }

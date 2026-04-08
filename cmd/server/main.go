@@ -60,6 +60,9 @@ func main() {
 		go worker(i, queue, series, cfg)
 	}
 
+	// Start series scheduler.
+	go seriesScheduler(queue, series, cfg)
+
 	mux := http.NewServeMux()
 
 	// --- Static files ---
@@ -68,14 +71,19 @@ func main() {
 
 	// --- Page routes ---
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/jobs", http.StatusFound)
+		http.Redirect(w, r, "/shorts", http.StatusFound)
 	})
 
-	mux.HandleFunc("GET /jobs", func(w http.ResponseWriter, r *http.Request) {
-		templates.Dashboard(queue.List(), series.List()).Render(r.Context(), w)
+	mux.HandleFunc("GET /shorts", func(w http.ResponseWriter, r *http.Request) {
+		templates.Dashboard(templates.DashboardProps{
+			Jobs:         queue.List(),
+			SeriesList:   series.List(),
+			Drafts:       drafts.List(),
+			SeriesDrafts: seriesDrafts.List(),
+		}).Render(r.Context(), w)
 	})
 
-	mux.HandleFunc("GET /jobs/create", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /shorts/create", func(w http.ResponseWriter, r *http.Request) {
 		current := loadState()
 		if current == nil {
 			current = cfg
@@ -87,7 +95,7 @@ func main() {
 		}).Render(r.Context(), w)
 	})
 
-	mux.HandleFunc("GET /jobs/{id}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /shorts/jobs/{id}", func(w http.ResponseWriter, r *http.Request) {
 		j := queue.Get(r.PathValue("id"))
 		if j == nil {
 			http.NotFound(w, r)
@@ -96,14 +104,7 @@ func main() {
 		templates.JobDetail(j).Render(r.Context(), w)
 	})
 
-	mux.HandleFunc("GET /drafts", func(w http.ResponseWriter, r *http.Request) {
-		templates.DraftsPage(templates.DraftsPageProps{
-			Drafts:       drafts.List(),
-			SeriesDrafts: seriesDrafts.List(),
-		}).Render(r.Context(), w)
-	})
-
-	mux.HandleFunc("GET /drafts/{id}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /shorts/drafts/{id}", func(w http.ResponseWriter, r *http.Request) {
 		d := drafts.Get(r.PathValue("id"))
 		if d == nil {
 			http.NotFound(w, r)
@@ -112,7 +113,7 @@ func main() {
 		templates.DraftDetail(d).Render(r.Context(), w)
 	})
 
-	mux.HandleFunc("GET /series-drafts/{id}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /shorts/series-drafts/{id}", func(w http.ResponseWriter, r *http.Request) {
 		sd := seriesDrafts.Get(r.PathValue("id"))
 		if sd == nil {
 			http.NotFound(w, r)
@@ -121,11 +122,7 @@ func main() {
 		templates.SeriesDraftDetail(sd).Render(r.Context(), w)
 	})
 
-	mux.HandleFunc("GET /series/create", func(w http.ResponseWriter, r *http.Request) {
-		templates.SeriesCreate().Render(r.Context(), w)
-	})
-
-	mux.HandleFunc("GET /series/{id}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /shorts/series/{id}", func(w http.ResponseWriter, r *http.Request) {
 		ser := series.Get(r.PathValue("id"))
 		if ser == nil {
 			http.NotFound(w, r)
@@ -135,6 +132,7 @@ func main() {
 		templates.SeriesDetail(ser, jobs).Render(r.Context(), w)
 	})
 
+
 	// --- API routes ---
 	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, cfg.Redacted())
@@ -142,7 +140,7 @@ func main() {
 
 	// --- Draft API ---
 
-	mux.HandleFunc("POST /api/drafts", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/shorts/drafts", func(w http.ResponseWriter, r *http.Request) {
 		var params pipeline.Params
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil || params.VideoSubject == "" {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"status": "error", "message": "videoSubject is required"})
@@ -190,7 +188,7 @@ func main() {
 		})
 	})
 
-	mux.HandleFunc("GET /api/drafts/{id}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/shorts/drafts/{id}", func(w http.ResponseWriter, r *http.Request) {
 		d := drafts.Get(r.PathValue("id"))
 		if d == nil {
 			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Draft not found"})
@@ -199,7 +197,7 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "draft": d})
 	})
 
-	mux.HandleFunc("GET /api/drafts/{id}/events", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/shorts/drafts/{id}/events", func(w http.ResponseWriter, r *http.Request) {
 		d := drafts.Get(r.PathValue("id"))
 		if d == nil {
 			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Draft not found"})
@@ -212,7 +210,7 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "events": d.GetEvents(afterID)})
 	})
 
-	mux.HandleFunc("POST /api/drafts/{id}/approve", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/shorts/drafts/{id}/approve", func(w http.ResponseWriter, r *http.Request) {
 		d := drafts.Get(r.PathValue("id"))
 		if d == nil {
 			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Draft not found"})
@@ -238,7 +236,7 @@ func main() {
 
 	// --- Series Draft API ---
 
-	mux.HandleFunc("POST /api/series-drafts", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/shorts/series-drafts", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Theme        string          `json:"theme"`
 			EpisodeCount int             `json:"episodeCount"`
@@ -333,7 +331,7 @@ func main() {
 		})
 	})
 
-	mux.HandleFunc("GET /api/series-drafts/{id}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/shorts/series-drafts/{id}", func(w http.ResponseWriter, r *http.Request) {
 		sd := seriesDrafts.Get(r.PathValue("id"))
 		if sd == nil {
 			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Series draft not found"})
@@ -342,7 +340,7 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "draft": sd})
 	})
 
-	mux.HandleFunc("GET /api/series-drafts/{id}/events", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/shorts/series-drafts/{id}/events", func(w http.ResponseWriter, r *http.Request) {
 		sd := seriesDrafts.Get(r.PathValue("id"))
 		if sd == nil {
 			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Series draft not found"})
@@ -355,7 +353,7 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "events": sd.GetEvents(afterID)})
 	})
 
-	mux.HandleFunc("POST /api/series-drafts/{id}/approve", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/shorts/series-drafts/{id}/approve", func(w http.ResponseWriter, r *http.Request) {
 		sd := seriesDrafts.Get(r.PathValue("id"))
 		if sd == nil {
 			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Series draft not found"})
@@ -372,7 +370,7 @@ func main() {
 			return
 		}
 
-		ser := series.Create(sd.Theme, len(sd.Episodes))
+		ser := series.Create(sd.Theme, len(sd.Episodes), "now", sd.SharedParams)
 		for _, ep := range sd.Episodes {
 			if ep.Status != draft.EpisodeStatusDone {
 				continue // skip failed episodes
@@ -393,7 +391,7 @@ func main() {
 		})
 	})
 
-	mux.HandleFunc("GET /api/jobs", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/shorts/jobs", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"status": "success",
 			"jobs":   queue.List(),
@@ -448,7 +446,7 @@ func main() {
 		w.Write(data)
 	})
 
-	mux.HandleFunc("POST /api/generate", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/shorts/generate", func(w http.ResponseWriter, r *http.Request) {
 		var params pipeline.Params
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{
@@ -482,7 +480,7 @@ func main() {
 		})
 	})
 
-	mux.HandleFunc("GET /api/jobs/{id}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/shorts/jobs/{id}", func(w http.ResponseWriter, r *http.Request) {
 		j := queue.Get(r.PathValue("id"))
 		if j == nil {
 			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Job not found"})
@@ -491,7 +489,7 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "job": j})
 	})
 
-	mux.HandleFunc("GET /api/jobs/{id}/events", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/shorts/jobs/{id}/events", func(w http.ResponseWriter, r *http.Request) {
 		j := queue.Get(r.PathValue("id"))
 		if j == nil {
 			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Job not found"})
@@ -504,7 +502,7 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "events": j.GetEvents(afterID)})
 	})
 
-	mux.HandleFunc("GET /api/jobs/{id}/metadata", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/shorts/jobs/{id}/metadata", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		metaPath := filepath.Join(cfg.TempDir, id, "metadata.json")
 		data, err := os.ReadFile(metaPath)
@@ -516,7 +514,7 @@ func main() {
 		w.Write(data)
 	})
 
-	mux.HandleFunc("GET /api/jobs/{id}/script", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/shorts/jobs/{id}/script", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		scriptPath := filepath.Join(cfg.TempDir, id, "script.txt")
 		data, err := os.ReadFile(scriptPath)
@@ -527,7 +525,7 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]string{"script": strings.TrimSpace(string(data))})
 	})
 
-	mux.HandleFunc("POST /api/jobs/{id}/cancel", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/shorts/jobs/{id}/cancel", func(w http.ResponseWriter, r *http.Request) {
 		if !queue.Cancel(r.PathValue("id")) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Job not found or already finished"})
 			return
@@ -536,7 +534,7 @@ func main() {
 	})
 
 	// Reburn a single job: clear subtitle cache and re-queue.
-	mux.HandleFunc("POST /api/jobs/{id}/reburn", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/shorts/jobs/{id}/reburn", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		j := queue.Get(id)
 		if j == nil {
@@ -556,7 +554,7 @@ func main() {
 	})
 
 	// Reburn all jobs in a series.
-	mux.HandleFunc("POST /api/series/{id}/reburn", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/shorts/series/{id}/reburn", func(w http.ResponseWriter, r *http.Request) {
 		seriesID := r.PathValue("id")
 		jobs := queue.ListBySeries(seriesID)
 		if len(jobs) == 0 {
@@ -573,7 +571,7 @@ func main() {
 				requeued++
 			}
 		}
-		series.UpdateStatus(seriesID, queue)
+		series.PersistNow()
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"status":   "success",
 			"message":  fmt.Sprintf("Re-queued %d jobs for subtitle reburn", requeued),
@@ -581,96 +579,70 @@ func main() {
 		})
 	})
 
-	mux.HandleFunc("POST /api/series", func(w http.ResponseWriter, r *http.Request) {
+	// Series creation — schedule-aware, agent picks topics per episode.
+	mux.HandleFunc("POST /api/shorts/series", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			Theme        string `json:"theme"`
-			EpisodeCount int    `json:"episodeCount"`
-			Voice        string `json:"voice"`
-			Context      string `json:"context"`
-			HookStyle    string `json:"hookStyle"`
-			CustomHook   string `json:"customHook"`
-			TonePreset   string `json:"tonePreset"`
-			SubtitlePos     string `json:"subtitlesPosition"`
-			Color           string `json:"color"`
-			ParagraphNum    int    `json:"paragraphNumber"`
-			UseMusic        bool   `json:"useMusic"`
-			VideoEffects    []string `json:"videoEffects"`
-			EndCardBgColor  string `json:"endCardBgColor"`
-			EndCardCTAText  string `json:"endCardCTAText"`
-			EndCardLogoPath string `json:"endCardLogoPath"`
-			EndCardDuration int    `json:"endCardDuration"`
+			Theme        string          `json:"theme"`
+			EpisodeCount int             `json:"episodeCount"`
+			Schedule     string          `json:"schedule"`
+			Params       json.RawMessage `json:"params"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Theme == "" || req.EpisodeCount <= 0 {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"status": "error", "message": "theme and episodeCount required"})
 			return
 		}
-
-		// Generate topics FIRST — only create series if this succeeds.
-		llm := inference.NewClient(cfg.InferenceURL, cfg.InferenceModel, cfg.InferenceAPIKey)
-		topics, err := generateSeriesTopics(r.Context(), llm, req.Theme, req.Context, req.EpisodeCount)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"status": "error", "message": fmt.Sprintf("Failed to generate topics: %v", err)})
-			return
+		if req.Schedule == "" {
+			req.Schedule = "now"
 		}
 
-		ser := series.Create(req.Theme, req.EpisodeCount)
+		ser := series.Create(req.Theme, req.EpisodeCount, req.Schedule, req.Params)
+		log.Printf("Created series %s: %q (%d episodes, schedule=%s)", ser.ID[:8], ser.Theme, ser.EpisodeCount, ser.Schedule)
 
-		// Submit a job for each topic.
-		var jobIDs []string
-		for i, topic := range topics {
-			paragraphs := req.ParagraphNum
-			if paragraphs <= 0 {
-				paragraphs = 1
-			}
-			params := pipeline.Params{
-				VideoSubject:    topic,
-				Voice:           req.Voice,
-				ParagraphNum:    paragraphs,
-				Context:         req.Context,
-				HookStyle:       req.HookStyle,
-				CustomHook:      req.CustomHook,
-				TonePreset:      req.TonePreset,
-				SubtitlePos:     req.SubtitlePos,
-				SubtitleColor:   req.Color,
-				UseMusic:        req.UseMusic,
-				VideoEffects:    req.VideoEffects,
-				EndCardBgColor:  req.EndCardBgColor,
-				EndCardCTAText:  req.EndCardCTAText,
-				EndCardLogoPath: req.EndCardLogoPath,
-				EndCardDuration: req.EndCardDuration,
-				SeriesTheme:     req.Theme,
-				EpisodeIndex:    i + 1,
-			}
-			payload, _ := json.Marshal(params)
-			jobID := queue.SubmitWithSeries(payload, topic, ser.ID)
-			series.AddJob(ser.ID, jobID)
-			jobIDs = append(jobIDs, jobID)
-		}
-
-		writeJSON(w, http.StatusOK, map[string]interface{}{
+		writeJSON(w, http.StatusOK, map[string]string{
 			"status":   "success",
 			"seriesId": ser.ID,
-			"topics":   topics,
-			"jobIds":   jobIDs,
 		})
 	})
 
-	mux.HandleFunc("GET /api/series", func(w http.ResponseWriter, r *http.Request) {
-		list := series.List()
-		// Update statuses.
-		for _, s := range list {
-			series.UpdateStatus(s.ID, queue)
-		}
-		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "series": list})
-	})
-
-	mux.HandleFunc("GET /api/series/{id}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/shorts/series/{id}/episodes/{ep}/run", func(w http.ResponseWriter, r *http.Request) {
 		ser := series.Get(r.PathValue("id"))
 		if ser == nil {
 			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Series not found"})
 			return
 		}
-		series.UpdateStatus(ser.ID, queue)
+		epIndex, _ := strconv.Atoi(r.PathValue("ep"))
+		if !ser.TriggerEpisode(epIndex) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"status": "error", "message": "Episode cannot be triggered (already running or completed)"})
+			return
+		}
+		ser.AppendLog(fmt.Sprintf("[Ep %d] Manually triggered", epIndex), "info")
+		series.PersistNow()
+		writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
+	})
+
+	mux.HandleFunc("GET /api/shorts/series/{id}/events", func(w http.ResponseWriter, r *http.Request) {
+		ser := series.Get(r.PathValue("id"))
+		if ser == nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Series not found"})
+			return
+		}
+		afterID := 0
+		if v := r.URL.Query().Get("after"); v != "" {
+			afterID, _ = strconv.Atoi(v)
+		}
+		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "events": ser.GetEvents(afterID)})
+	})
+
+	mux.HandleFunc("GET /api/shorts/series", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "series": series.List()})
+	})
+
+	mux.HandleFunc("GET /api/shorts/series/{id}", func(w http.ResponseWriter, r *http.Request) {
+		ser := series.Get(r.PathValue("id"))
+		if ser == nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"status": "error", "message": "Series not found"})
+			return
+		}
 		jobs := queue.ListBySeries(ser.ID)
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "success", "series": ser, "jobs": jobs})
 	})
@@ -779,9 +751,23 @@ func worker(id int, queue *job.Queue, series *job.SeriesStore, cfg *state.State)
 		}
 		queue.PersistNow()
 
-		// Update series status if this job belongs to one.
+		// Update series episode status if this job belongs to one.
 		if j.SeriesID != "" {
-			series.UpdateStatus(j.SeriesID, queue)
+			ser := series.Get(j.SeriesID)
+			if ser != nil {
+				for _, ep := range ser.Episodes {
+					if ep.JobID == j.ID {
+						if j.Status == job.StatusCompleted {
+							ser.MarkEpisodeCompleted(ep.Index)
+						} else if j.Status == job.StatusFailed {
+							ser.FailEpisode(ep.Index, j.ErrorMessage)
+						}
+						break
+					}
+				}
+				ser.CheckComplete()
+				series.PersistNow()
+			}
 		}
 	}
 }
@@ -818,6 +804,111 @@ Example: ["Topic 1", "Topic 2", "Topic 3"]`, count, theme)
 	}
 
 	return topics, nil
+}
+
+func seriesScheduler(queue *job.Queue, seriesStore *job.SeriesStore, cfg *state.State) {
+	for {
+		time.Sleep(5 * time.Second)
+
+		for _, ser := range seriesStore.List() {
+			if ser.Status != job.SeriesStatusRunning {
+				continue
+			}
+			if ser.HasActiveEpisode() {
+				continue // one at a time
+			}
+			ep := ser.NextPlannedEpisode()
+			if ep == nil {
+				continue // all episodes started
+			}
+			if !ser.IsDue() {
+				continue // not time yet
+			}
+
+			go processEpisode(ser, ep.Index, queue, seriesStore, cfg)
+		}
+	}
+}
+
+func processEpisode(ser *job.Series, epIndex int, queue *job.Queue, seriesStore *job.SeriesStore, cfg *state.State) {
+	// Reload state for fresh API keys.
+	current := loadState()
+	if current == nil {
+		current = cfg
+	}
+
+	ser.MarkEpisodeResearching(epIndex)
+	ser.AppendLog(fmt.Sprintf("[Ep %d/%d] Starting research...", epIndex, ser.EpisodeCount), "info")
+	seriesStore.PersistNow()
+
+	llm := inference.NewClient(current.InferenceURL, current.InferenceModel, current.InferenceAPIKey)
+
+	// Build context from previous completed episodes.
+	var prevEpisodes []agent.PreviousEpisode
+	for _, ep := range ser.CompletedEpisodes() {
+		summary := ep.Script
+		if len(summary) > 150 {
+			summary = summary[:150] + "..."
+		}
+		prevEpisodes = append(prevEpisodes, agent.PreviousEpisode{
+			Index:   ep.Index,
+			Subject: ep.Subject,
+			Summary: summary,
+		})
+	}
+
+	// Decode shared params for tone/hook.
+	var params pipeline.Params
+	if ser.Params != nil {
+		json.Unmarshal(ser.Params, &params)
+	}
+
+	agentCfg := agent.Config{
+		LLM:              llm,
+		BraveAPIKey:      current.BraveSearchAPIKey,
+		VideoSubject:     "", // agent picks its own topic
+		TonePreset:       params.TonePreset,
+		HookStyle:        params.HookStyle,
+		ParagraphNum:     params.ParagraphNum,
+		SeriesTheme:      ser.Theme,
+		EpisodeIndex:     epIndex,
+		EpisodeTotal:     ser.EpisodeCount,
+		PreviousEpisodes: prevEpisodes,
+	}
+
+	onEvent := func(msg, level string) {
+		ser.AppendLog(fmt.Sprintf("[Ep %d] %s", epIndex, msg), level)
+	}
+
+	result, err := agent.Run(context.Background(), agentCfg, onEvent)
+	if err != nil {
+		ser.AppendLog(fmt.Sprintf("[Ep %d] Research failed: %v", epIndex, err), "error")
+		ser.FailEpisode(epIndex, err.Error())
+		ser.CheckComplete()
+		seriesStore.PersistNow()
+		return
+	}
+
+	// Build pipeline params and queue the video job.
+	params.VideoSubject = result.Subject
+	params.ScriptOverride = result.Script
+	params.SeriesTheme = ser.Theme
+	params.EpisodeIndex = epIndex
+
+	payload, _ := json.Marshal(params)
+	jobID := queue.SubmitWithSeries(payload, result.Subject, ser.ID)
+
+	sources := make([]job.EpisodeSource, len(result.Sources))
+	for i, s := range result.Sources {
+		sources[i] = job.EpisodeSource{Title: s.Title, URL: s.URL, Snippet: s.Snippet}
+	}
+
+	ser.CompleteEpisodeResearch(epIndex, result.Subject, result.Script, sources, jobID)
+	ser.AdvanceSchedule()
+	ser.AppendLog(fmt.Sprintf("[Ep %d] \"%s\" — queued for video generation", epIndex, result.Subject), "success")
+	seriesStore.PersistNow()
+
+	log.Printf("[series:%s] Episode %d researched: %q → job %s", ser.ID[:8], epIndex, result.Subject, jobID[:8])
 }
 
 func checkDependencies() {

@@ -1,35 +1,26 @@
-// Dashboard page — auto-refresh when active jobs exist
+// Dashboard page — auto-refresh when active jobs or research exist
 (function () {
   "use strict";
 
-  async function checkForActive() {
+  async function hasActiveWork() {
     try {
-      const resp = await fetch("/api/jobs");
-      if (!resp.ok) return;
-      const data = await resp.json();
-      const hasActive = (data.jobs || []).some(
-        (j) => j.status === "running" || j.status === "queued"
-      );
-      if (hasActive) {
-        window.location.reload();
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  document.addEventListener("DOMContentLoaded", () => {
-    // Check API for active jobs; if any, poll every 5s.
-    fetch("/api/jobs")
-      .then((r) => r.json())
-      .then((data) => {
-        const hasActive = (data.jobs || []).some(
+      const resp = await fetch("/api/shorts/jobs");
+      if (resp.ok) {
+        const data = await resp.json();
+        const active = (data.jobs || []).some(
           (j) => j.status === "running" || j.status === "queued"
         );
-        if (hasActive) {
-          setInterval(checkForActive, 5000);
-        }
-      })
-      .catch(() => {});
+        if (active) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    if (await hasActiveWork()) {
+      setInterval(async () => {
+        if (await hasActiveWork()) window.location.reload();
+      }, 5000);
+    }
   });
 })();

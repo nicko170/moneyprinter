@@ -19,8 +19,8 @@ type CreateJobProps struct {
 }
 
 templ CreateJob(props CreateJobProps) {
-	@Layout("Create Job") {
-		<h1 class="text-2xl font-bold mb-2">Create Job</h1>
+	@Layout("Create") {
+		<h1 class="text-2xl font-bold mb-2">Create</h1>
 		<div class="flex gap-3 text-xs text-muted-foreground mb-6">
 			if props.InferenceURL != "" {
 				<span>Model: { props.InferenceModel }</span>
@@ -35,9 +35,9 @@ templ CreateJob(props CreateJobProps) {
 			@card.Content(card.ContentProps{Class: "pt-6"}) {
 				<form id="generateForm" onsubmit="return false;">
 					<div class="space-y-2">
-						@label.Label(label.Props{For: "videoSubject"}) {
+						<label id="videoSubjectLabel" for="videoSubject" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
 							Video Subject
-						}
+						</label>
 						@textarea.Textarea(textarea.Props{
 							ID:          "videoSubject",
 							Name:        "videoSubject",
@@ -45,6 +45,47 @@ templ CreateJob(props CreateJobProps) {
 							Rows:        3,
 							AutoResize:  true,
 						})
+					</div>
+					<!-- Series toggle -->
+					<div class="flex items-center gap-3 mt-4 p-3 rounded-md border border-border">
+						@switchcomp.Switch(switchcomp.Props{
+							ID:   "seriesToggle",
+							Name: "seriesToggle",
+							Attributes: templ.Attributes{"onchange": "document.getElementById('seriesFields').classList.toggle('hidden', !this.checked); document.getElementById('seriesHint').classList.toggle('hidden', !this.checked); document.getElementById('videoSubjectLabel').textContent = this.checked ? 'Series Theme' : 'Video Subject'; document.getElementById('videoSubject').placeholder = this.checked ? 'What should the series be about?' : 'What should the video be about?'"},
+						})
+						@label.Label(label.Props{For: "seriesToggle", Class: "text-sm font-medium cursor-pointer"}) {
+							Create as series
+						}
+						<span class="text-xs text-muted-foreground">— research multiple episodes from one theme</span>
+					</div>
+					<div id="seriesFields" class="hidden mt-3 space-y-3">
+						<div class="grid grid-cols-2 gap-4">
+							<div class="space-y-2">
+								@label.Label(label.Props{For: "episodeCount"}) {
+									Number of Episodes
+								}
+								@input.Input(input.Props{
+									ID:    "episodeCount",
+									Name:  "episodeCount",
+									Type:  "number",
+									Value: "5",
+									Attributes: templ.Attributes{"min": "2", "max": "50"},
+								})
+							</div>
+							<div class="space-y-2">
+								@label.Label(label.Props{For: "schedule"}) {
+									Schedule
+								}
+								<select id="schedule" name="schedule" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+									<option value="now" selected>All at once (now)</option>
+									<option value="1h">Every hour</option>
+									<option value="6h">Every 6 hours</option>
+									<option value="12h">Every 12 hours</option>
+									<option value="24h">Daily</option>
+									<option value="48h">Every 2 days</option>
+								</select>
+							</div>
+						</div>
 					</div>
 					<!-- Hook Style + Tone — primary creative choices -->
 					<div class="grid grid-cols-2 gap-4 mt-4">
@@ -209,6 +250,9 @@ templ CreateJob(props CreateJobProps) {
 						</svg>
 						Research &amp; Draft
 					}
+					<p id="seriesHint" class="hidden text-xs text-muted-foreground text-center mt-2">
+						This will plan episode topics then research each one in parallel.
+					</p>
 				</form>
 			}
 		}
@@ -340,11 +384,13 @@ templ hookStyleSelect() {
 templ tonePresetSelect() {
 	<select id="tonePreset" name="tonePreset" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
 		<option value="">Default</option>
-		<option value="informative">Informative 📚</option>
-		<option value="hype">Hype / Excited ⚡</option>
+		<option value="unhinged">Unhinged / Chaotic 🤯</option>
 		<option value="sarcastic">Sarcastic / Witty 😏</option>
+		<option value="hype">Hype / Excited ⚡</option>
+		<option value="storyteller">Storyteller 📖</option>
 		<option value="dramatic">Dramatic / Epic 🎬</option>
 		<option value="casual">Casual / Chill 😎</option>
+		<option value="informative">Informative 📚</option>
 		<option value="professional">Professional 💼</option>
 	</select>
 }

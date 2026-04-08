@@ -68,7 +68,7 @@
   async function poll() {
     try {
       // Fetch new log events.
-      const evResp = await fetch(`/api/series-drafts/${seriesDraftId}/events?after=${lastEventId}`);
+      const evResp = await fetch(`/api/shorts/series-drafts/${seriesDraftId}/events?after=${lastEventId}`);
       if (evResp.ok) {
         const data = await evResp.json();
         if (data.events) {
@@ -80,7 +80,7 @@
       }
 
       // Fetch full draft state for episode progress.
-      const draftResp = await fetch(`/api/series-drafts/${seriesDraftId}`);
+      const draftResp = await fetch(`/api/shorts/series-drafts/${seriesDraftId}`);
       if (draftResp.ok) {
         const data = await draftResp.json();
         const sd = data.draft;
@@ -121,10 +121,10 @@
       approveBtn.disabled = true;
       approveBtn.textContent = "Submitting…";
       try {
-        const resp = await fetch(`/api/series-drafts/${seriesDraftId}/approve`, { method: "POST" });
+        const resp = await fetch(`/api/shorts/series-drafts/${seriesDraftId}/approve`, { method: "POST" });
         const data = await resp.json();
         if (data.status === "success" && data.seriesId) {
-          window.location.href = "/series/" + data.seriesId;
+          window.location.href = "/shorts/series/" + data.seriesId;
         } else {
           if (typeof showToast === "function") showToast(data.message || "Approval failed.", "error");
           approveBtn.disabled = false;
@@ -140,7 +140,7 @@
 
   async function loadAllEvents() {
     try {
-      const evResp = await fetch(`/api/series-drafts/${seriesDraftId}/events?after=0`);
+      const evResp = await fetch(`/api/shorts/series-drafts/${seriesDraftId}/events?after=0`);
       if (!evResp.ok) return;
       const data = await evResp.json();
       if (data.events) {

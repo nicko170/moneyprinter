@@ -49,7 +49,7 @@ func SeriesDraftDetail(sd *draft.SeriesDraft) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex items-center gap-3 mb-6\"><a href=\"/series/create\" class=\"text-muted-foreground hover:text-foreground text-sm\">← New Series</a></div><div class=\"flex items-center justify-between mb-6\"><div><h1 class=\"text-2xl font-bold\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex items-center gap-3 mb-6\"><a href=\"/shorts\" class=\"text-muted-foreground hover:text-foreground text-sm\">← Shorts</a></div><div class=\"flex items-center justify-between mb-6\"><div><h1 class=\"text-2xl font-bold\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -257,7 +257,7 @@ func SeriesDraftDetail(sd *draft.SeriesDraft) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = episodeStatusBadge(ep.Status).Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = draftEpisodeStatusBadge(ep.Status).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -874,7 +874,7 @@ func seriesDraftStatusBadge(status draft.SeriesDraftStatus) templ.Component {
 	})
 }
 
-func episodeStatusBadge(status draft.EpisodeDraftStatus) templ.Component {
+func draftEpisodeStatusBadge(status draft.EpisodeDraftStatus) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

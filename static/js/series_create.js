@@ -52,7 +52,7 @@
       }
 
       try {
-        const resp = await fetch("/api/series-drafts", {
+        const resp = await fetch("/api/shorts/series-drafts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -63,7 +63,7 @@
         });
         const data = await resp.json();
         if (data.status === "success" && data.seriesDraftId) {
-          window.location.href = "/series-drafts/" + data.seriesDraftId;
+          window.location.href = "/shorts/series-drafts/" + data.seriesDraftId;
         } else {
           showToast(data.message || "Failed to start series research.", "error");
           btn.disabled = false;

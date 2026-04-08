@@ -1,4 +1,4 @@
-// Create Job page — form submission → research draft
+// Create page — handles both single draft and series draft creation
 (function () {
   "use strict";
 
@@ -8,22 +8,23 @@
 
     btn.addEventListener("click", async () => {
       const text = subject.value.trim();
+      const isSeries = document.getElementById("seriesToggle").checked;
+
       if (!text) {
-        showToast("Please enter a video subject.", "error");
+        showToast(isSeries ? "Please enter a series theme." : "Please enter a video subject.", "error");
         return;
       }
 
       btn.disabled = true;
       btn.textContent = "Starting research…";
 
-      const payload = {
-        videoSubject: text,
+      // Collect shared params.
+      const params = {
         voice: document.getElementById("voice").value,
         paragraphNumber: parseInt(document.getElementById("paragraphNumber").value) || 1,
         subtitlesPosition: document.getElementById("subtitlesPosition").value,
         color: document.getElementById("subtitlesColor").value,
         useMusic: document.getElementById("useMusicToggle").checked,
-        customPrompt: document.getElementById("customPrompt").value,
         hookStyle: document.getElementById("hookStyle").value,
         customHook: document.getElementById("customHook").value,
         tonePreset: document.getElementById("tonePreset").value,
@@ -38,7 +39,7 @@
         } : {}),
       };
 
-      // Handle logo upload — if a file is selected, upload it first.
+      // Handle logo upload if present.
       const logoInput = document.getElementById("endCardLogo");
       if (logoInput && logoInput.files.length > 0) {
         const formData = new FormData();
@@ -46,30 +47,49 @@
         try {
           const uploadResp = await fetch("/api/upload-logo", { method: "POST", body: formData });
           const uploadData = await uploadResp.json();
-          if (uploadData.path) {
-            payload.endCardLogoPath = uploadData.path;
-          }
+          if (uploadData.path) params.endCardLogoPath = uploadData.path;
         } catch (e) {
           showToast("Logo upload failed, continuing without", "warning");
         }
       }
 
       try {
-        const resp = await fetch("/api/drafts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const data = await resp.json();
-        if (data.status === "success" && data.draftId) {
-          window.location.href = "/drafts/" + data.draftId;
+        if (isSeries) {
+          const count = parseInt(document.getElementById("episodeCount").value) || 5;
+          const schedule = document.getElementById("schedule").value;
+          const resp = await fetch("/api/shorts/series", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              theme: text,
+              episodeCount: count,
+              schedule: schedule,
+              params: params,
+            }),
+          });
+          const data = await resp.json();
+          if (data.status === "success" && data.seriesId) {
+            window.location.href = "/shorts/series/" + data.seriesId;
+          } else {
+            throw new Error(data.message || "Failed to create series.");
+          }
         } else {
-          showToast(data.message || "Failed to start research.", "error");
-          btn.disabled = false;
-          btn.textContent = "Research & Draft";
+          params.videoSubject = text;
+          params.customPrompt = document.getElementById("customPrompt").value;
+          const resp = await fetch("/api/shorts/drafts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(params),
+          });
+          const data = await resp.json();
+          if (data.status === "success" && data.draftId) {
+            window.location.href = "/shorts/drafts/" + data.draftId;
+          } else {
+            throw new Error(data.message || "Failed to start research.");
+          }
         }
       } catch (e) {
-        showToast("Connection error. Is the server running?", "error");
+        showToast(e.message || "Connection error.", "error");
         btn.disabled = false;
         btn.textContent = "Research & Draft";
       }

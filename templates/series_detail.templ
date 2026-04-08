@@ -3,6 +3,7 @@ package templates
 import (
 	"fmt"
 	"path/filepath"
+	"github.com/moneyprinter/components/badge"
 	"github.com/moneyprinter/components/button"
 	"github.com/moneyprinter/components/card"
 	"github.com/moneyprinter/internal/job"
@@ -11,60 +12,161 @@ import (
 templ SeriesDetail(s *job.Series, jobs []*job.Job) {
 	@Layout("Series: " + s.Theme) {
 		<div class="flex items-center gap-3 mb-6">
-			<a href="/jobs" class="text-muted-foreground hover:text-foreground text-sm">← Dashboard</a>
+			<a href="/shorts" class="text-muted-foreground hover:text-foreground text-sm">← Shorts</a>
 		</div>
 		<div class="flex items-center justify-between mb-6">
 			<div>
 				<h1 class="text-2xl font-bold">{ s.Theme }</h1>
 				<p class="text-sm text-muted-foreground mt-1">
-					{ fmt.Sprintf("%d", s.EpisodeCount) } episodes · Created { s.CreatedAt.Format("Jan 2 15:04") }
+					{ seriesProgress(s) } · Created { s.CreatedAt.Format("Jan 2 15:04") }
+					if s.Schedule != "" && s.Schedule != "now" {
+						· every { s.Schedule }
+					}
 				</p>
 			</div>
 			<div class="flex items-center gap-3">
-				if s.Status == job.SeriesStatusCompleted {
-					@button.Button(button.Props{
-						ID:      "reburnButton",
-						Type:    "button",
-						Variant: button.VariantOutline,
-						Size:    button.SizeSm,
-					}) {
-						Reburn Subtitles
-					}
-				}
 				@seriesStatusBadge(s.Status)
 			</div>
 		</div>
-		<div class="grid gap-3">
-			for i, j := range jobs {
-				@card.Card(card.Props{Class: "hover:shadow-md transition-shadow"}) {
-					<div class="flex items-center justify-between gap-4 overflow-hidden p-4">
-						<a href={ templ.SafeURL("/jobs/" + j.ID) } class="min-w-0 flex-1">
-							<p class="text-xs text-muted-foreground mb-1">Episode { fmt.Sprintf("%d", i+1) }</p>
-							<p class="font-medium truncate">{ j.Subject }</p>
-						</a>
-						<div class="flex items-center gap-3 shrink-0">
-							@jobStatusBadge(j.Status)
-							if j.Status == job.StatusCompleted {
-								@button.Button(button.Props{Href: "/output/" + filepath.Base(j.ResultPath), Size: button.SizeSm, Variant: button.VariantOutline}) {
-									Download
-								}
+
+		if s.Status == job.SeriesStatusRunning && len(s.Episodes) > 0 {
+			<!-- Progress bar -->
+			@card.Card(card.Props{Class: "mb-4"}) {
+				@card.Content(card.ContentProps{Class: "pt-6"}) {
+					<div class="flex items-center gap-3 mb-3">
+						<div class="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
+						<span class="text-sm font-medium text-blue-600">
+							if s.Schedule != "" && s.Schedule != "now" {
+								Scheduled — { seriesProgress(s) }
+							} else {
+								Generating — { seriesProgress(s) }
 							}
+						</span>
+					</div>
+					<div class="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+						<div class="h-full rounded-full bg-primary transition-all" style={ fmt.Sprintf("width: %d%%", episodePercent(s)) }></div>
+					</div>
+					if s.Schedule != "" && s.Schedule != "now" && !s.NextRunAt.IsZero() && s.Status == job.SeriesStatusRunning {
+						<p class="text-xs text-muted-foreground mt-2">
+							Next episode: { s.NextRunAt.Format("Jan 2 15:04") }
+						</p>
+					}
+				}
+			}
+		}
+
+		<!-- Episodes -->
+		<h2 class="text-lg font-semibold mb-3">Episodes</h2>
+		<div class="grid gap-3" id="episodeList">
+			for _, ep := range s.Episodes {
+				@card.Card(card.Props{Class: "overflow-hidden"}) {
+					<div class="p-4">
+						<div class="flex items-center justify-between gap-4">
+							<div class="min-w-0 flex-1">
+								<div class="flex items-center gap-2">
+									<span class="text-xs text-muted-foreground">Episode { fmt.Sprintf("%d", ep.Index) }</span>
+									@episodeStatusBadge(ep.Status)
+								</div>
+								if ep.Subject != "" {
+									<p class="font-medium mt-1">{ ep.Subject }</p>
+								} else if ep.Status == job.EpisodeStatusPlanned {
+									if scheduled := s.EpisodeScheduledAt(ep.Index); !scheduled.IsZero() {
+										<p class="text-sm text-muted-foreground mt-1 italic">Scheduled for { scheduled.Format("Jan 2 15:04") }</p>
+									} else {
+										<p class="text-sm text-muted-foreground mt-1 italic">Up next</p>
+									}
+								} else {
+									<p class="text-sm text-muted-foreground mt-1 italic">Researching...</p>
+								}
+							</div>
+							<div class="flex items-center gap-2 shrink-0">
+								if ep.Status == job.EpisodeStatusPlanned || ep.Status == job.EpisodeStatusFailed {
+									<button
+										type="button"
+										class="inline-flex items-center justify-center h-8 px-3 rounded-md border border-input text-xs hover:bg-accent hover:text-accent-foreground transition-colors"
+										onclick={ templ.ComponentScript{Call: fmt.Sprintf("triggerEpisode('%s', %d)", s.ID, ep.Index)} }
+									>
+										Run Now
+									</button>
+								}
+								if ep.JobID != "" {
+									for _, j := range jobs {
+										if j.ID == ep.JobID && j.Status == job.StatusCompleted {
+											@button.Button(button.Props{Href: "/output/" + filepath.Base(j.ResultPath), Size: button.SizeSm, Variant: button.VariantOutline}) {
+												Download
+											}
+										}
+									}
+								}
+							</div>
 						</div>
+						if ep.Script != "" {
+							<details class="mt-3">
+								<summary class="text-xs text-muted-foreground cursor-pointer hover:text-foreground">View script</summary>
+								<p class="text-sm leading-relaxed whitespace-pre-wrap mt-2 p-3 rounded bg-muted/50">{ ep.Script }</p>
+							</details>
+						}
+						if ep.Error != "" {
+							<p class="text-xs text-red-500 mt-2">{ ep.Error }</p>
+						}
 					</div>
 				}
 			}
 		</div>
-		<!-- Completed summary -->
+
 		if s.Status == job.SeriesStatusCompleted {
 			@card.Card(card.Props{Class: "mt-6"}) {
 				@card.Content(card.ContentProps{Class: "py-6 text-center"}) {
 					<p class="text-green-600 font-medium">All episodes complete!</p>
-					<p class="text-sm text-muted-foreground mt-1">
-						Videos are ready for download and upload to your social platforms.
-					</p>
 				}
 			}
 		}
-		<script src="/static/js/series_detail.js"></script>
+
+		<!-- Log viewer -->
+		<div class="rounded-lg border overflow-hidden mt-6">
+			<div class="flex items-center justify-between bg-zinc-900 px-4 py-2">
+				<span class="text-xs font-medium uppercase tracking-wider text-zinc-500">Live Output</span>
+			</div>
+			<div id="logViewerBody" class="bg-zinc-950 p-4 font-mono text-xs leading-relaxed max-h-80 overflow-y-auto"></div>
+		</div>
+
+		<script>
+			window.__seriesId = document.currentScript.getAttribute("data-series-id");
+			async function triggerEpisode(seriesId, epIndex) {
+				try {
+					const resp = await fetch(`/api/shorts/series/${seriesId}/episodes/${epIndex}/run`, { method: "POST" });
+					if (resp.ok) { window.location.reload(); }
+					else { const d = await resp.json(); alert(d.message || "Failed"); }
+				} catch(e) { alert("Request failed"); }
+			}
+		</script>
+		<script data-series-id={ s.ID } src="/static/js/series_detail.js"></script>
 	}
 }
+
+templ episodeStatusBadge(status job.EpisodeStatus) {
+	switch status {
+		case job.EpisodeStatusPlanned:
+			@badge.Badge(badge.Props{Variant: badge.VariantSecondary}) {
+				Planned
+			}
+		case job.EpisodeStatusResearching:
+			@badge.Badge(badge.Props{Class: "bg-purple-100 text-purple-800 border-purple-200"}) {
+				Researching
+			}
+		case job.EpisodeStatusGenerating:
+			@badge.Badge(badge.Props{Class: "bg-blue-100 text-blue-800 border-blue-200"}) {
+				Generating
+			}
+		case job.EpisodeStatusCompleted:
+			@badge.Badge(badge.Props{Class: "bg-green-100 text-green-800 border-green-200"}) {
+				Completed
+			}
+		case job.EpisodeStatusFailed:
+			@badge.Badge(badge.Props{Variant: badge.VariantDestructive}) {
+				Failed
+			}
+	}
+}
+
+// episodePercent is defined in dashboard.templ (same package)

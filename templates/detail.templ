@@ -11,7 +11,7 @@ import (
 templ JobDetail(j *job.Job) {
 	@Layout("Job " + j.Subject) {
 		<div class="flex items-center gap-3 mb-6">
-			<a href="/jobs" class="text-muted-foreground hover:text-foreground text-sm">← Dashboard</a>
+			<a href="/shorts" class="text-muted-foreground hover:text-foreground text-sm">← Shorts</a>
 		</div>
 		<div class="flex items-center justify-between mb-6">
 			<div>
@@ -153,7 +153,7 @@ templ JobDetail(j *job.Job) {
 				@badge.Badge(badge.Props{Variant: badge.VariantOutline}) {
 					Part of series
 				}
-				<a href={ templ.SafeURL("/series/" + j.SeriesID) } class="text-sm text-muted-foreground hover:text-foreground ml-2">View series →</a>
+				<a href={ templ.SafeURL("/shorts/series/" + j.SeriesID) } class="text-sm text-muted-foreground hover:text-foreground ml-2">View series →</a>
 			</div>
 		}
 		<!-- Pass job ID to JS -->
